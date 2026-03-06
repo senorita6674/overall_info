@@ -1,1 +1,1670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Talad Noi · Live Crowd Model</title>
+<style>
+:root{
+  --gold:#C9A84C;--dark:#090805;--s1:#141210;--s2:#1C1910;--s3:#242016;
+  --text:#E8DEC8;--muted:#7A6D50;--dim:#4A4232;
+  --red:#D94F3B;--grn:#5A9E6F;--org:#D4833A;--blu:#4A7FB5;--pur:#8B6BBE;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{font-size:13px;}
+body{background:var(--dark);color:var(--text);font-family:'Courier New',monospace;min-height:100vh;}
+body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");pointer-events:none;z-index:999;}
+
+/* HEADER */
+header{padding:18px 36px 12px;border-bottom:1px solid rgba(201,168,76,.14);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;}
+.h1{font-size:1.6rem;font-weight:700;color:var(--gold);letter-spacing:.04em;}
+.hsub{font-size:.56rem;color:var(--muted);letter-spacing:.2em;text-transform:uppercase;margin-top:3px;}
+.hright{display:flex;flex-direction:column;align-items:flex-end;gap:4px;}
+.livechip{display:flex;align-items:center;gap:5px;font-size:.58rem;color:var(--grn);letter-spacing:.15em;text-transform:uppercase;border:1px solid rgba(90,158,111,.3);border-radius:3px;padding:3px 8px;}
+.ldot{width:6px;height:6px;border-radius:50%;background:var(--grn);animation:pulse 1.5s infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.3;transform:scale(1.4);}}
+.warnchip{font-size:.52rem;color:var(--org);letter-spacing:.08em;}
+
+/* CONTROLS */
+.cbar{padding:8px 36px;background:var(--s1);border-bottom:1px solid rgba(255,255,255,.04);display:flex;gap:7px;align-items:center;flex-wrap:wrap;}
+select,.btn{font-family:'Courier New',monospace;font-size:.6rem;border-radius:3px;padding:5px 10px;cursor:pointer;letter-spacing:.05em;text-transform:uppercase;transition:all .15s;}
+select{background:var(--s2);color:var(--text);border:1px solid rgba(201,168,76,.2);}
+.btn{border:none;}
+
+/* DROPDOWN STYLES */
+.dropdown-toggle{cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center;width:100%;}
+.dropdown-toggle:hover{color:var(--gold);}
+.dropdown-icon{display:inline-block;transition:transform .2s;margin-left:8px;font-size:.6rem;}
+.dropdown-icon.collapsed{transform:rotate(-90deg);}
+.dropdown-content{max-height:1000px;overflow:hidden;transition:max-height .3s ease;opacity:1;transition:opacity .3s;}
+.dropdown-content.collapsed{max-height:0;opacity:0;}
+.bnow{background:var(--grn);color:#000;font-weight:700;display:flex;align-items:center;gap:5px;}
+.bnow:hover,.bnow.active{background:#6DBD85;box-shadow:0 0 10px rgba(90,158,111,.4);}
+.bghost{background:transparent;color:var(--muted);border:1px solid rgba(255,255,255,.1);}
+.bghost:hover{border-color:var(--gold);color:var(--gold);}
+.bpred{background:transparent;color:var(--pur);border:1px solid rgba(139,107,190,.28);font-size:.56rem;}
+.bpred:hover,.bpred.on{background:rgba(139,107,190,.14);border-color:rgba(139,107,190,.6);color:var(--pur);}
+.mpill{margin-left:auto;font-size:.56rem;padding:4px 9px;border-radius:3px;border:1px solid rgba(201,168,76,.16);color:var(--muted);letter-spacing:.1em;white-space:nowrap;}
+.mpill.live{color:var(--grn);border-color:rgba(90,158,111,.4);}
+.mpill.scrub{color:var(--gold);border-color:rgba(201,168,76,.5);}
+.mpill.pred{color:var(--pur);border-color:rgba(139,107,190,.5);}
+
+/* SOURCES */
+.srcbar{padding:5px 36px;background:rgba(201,168,76,.03);border-bottom:1px solid rgba(255,255,255,.03);font-size:.5rem;color:var(--dim);line-height:1.9;display:flex;flex-wrap:wrap;gap:0 12px;}
+.srcbar strong{color:var(--muted);}
+
+/* TIMELINE */
+.tlwrap{padding:8px 36px 0;}
+.tlcard{background:var(--s1);border:1px solid rgba(201,168,76,.11);border-radius:4px;padding:10px 16px 12px;}
+.tlhdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;}
+.tllbl{font-size:.56rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);}
+.tlread{font-size:.75rem;color:var(--gold);font-weight:700;}
+.swrap{position:relative;height:66px;cursor:crosshair;user-select:none;}
+canvas.sc{width:100%;height:100%;display:block;}
+.thumb{position:absolute;top:0;bottom:0;width:2px;background:var(--gold);pointer-events:none;box-shadow:0 0 8px rgba(201,168,76,.5);left:-20px;}
+.thumb::before{content:'';position:absolute;top:-5px;left:-5px;width:11px;height:11px;border-radius:50%;background:var(--gold);box-shadow:0 0 9px rgba(201,168,76,.8);}
+.tip{position:absolute;bottom:calc(100% + 7px);transform:translateX(-50%);background:var(--s2);border:1px solid var(--gold);border-radius:3px;padding:3px 8px;font-size:.62rem;color:var(--gold);white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .1s;}
+.tip.show{opacity:1;}
+.hrlbls{display:flex;justify-content:space-between;margin-top:3px;padding:0 2px;}
+.hrlbls span{font-size:.5rem;color:var(--dim);}
+.tlhint{margin-top:3px;font-size:.5rem;color:var(--dim);text-align:center;letter-spacing:.08em;}
+
+/* PRED BANNER */
+.pbanner{margin:8px 36px 0;padding:9px 14px;background:rgba(139,107,190,.07);border:1px solid rgba(139,107,190,.28);border-radius:4px;display:none;flex-wrap:wrap;gap:8px;align-items:flex-start;}
+.pbanner.show{display:flex;}
+.pbinfo{flex:1;min-width:160px;}
+.pbtitle{font-size:.6rem;color:var(--pur);font-weight:700;letter-spacing:.1em;text-transform:uppercase;}
+.pbnote{font-size:.55rem;color:var(--muted);margin-top:2px;line-height:1.5;}
+.pbchips{display:flex;gap:7px;flex-wrap:wrap;}
+.pchip{text-align:center;padding:5px 10px;background:rgba(139,107,190,.1);border:1px solid rgba(139,107,190,.28);border-radius:3px;}
+.pcyr{font-size:.5rem;color:var(--pur);letter-spacing:.1em;}
+.pcval{font-size:.95rem;font-weight:700;color:var(--text);}
+.pcmult{font-size:.5rem;color:var(--muted);margin-top:1px;}
+.pcfact{font-size:.48rem;color:var(--dim);margin-top:2px;line-height:1.4;max-width:120px;}
+
+/* STATS */
+.statsrow{padding:8px 36px 0;display:grid;grid-template-columns:repeat(5,1fr);gap:8px;}
+.scard{background:var(--s1);border:1px solid rgba(201,168,76,.09);border-radius:4px;padding:10px 12px;position:relative;overflow:hidden;}
+.scard::after{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent);opacity:.22;}
+.slbl{font-size:.52rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:5px;}
+.sval{font-size:1.9rem;font-weight:700;color:var(--gold);line-height:1;}
+.sval span{font-size:.6rem;color:var(--muted);font-weight:400;}
+.ssub{margin-top:4px;font-size:.58rem;}
+.sup{color:var(--red);}.sdn{color:var(--grn);}.swarn{color:var(--org);}.sneu{color:var(--muted);}.spur{color:var(--pur);}
+
+/* BODY */
+.body{padding:8px 36px 0;display:grid;grid-template-columns:1.2fr 1fr;gap:10px;}
+
+/* VENUE TABLE */
+.vcard,.rcard{background:var(--s1);border:1px solid rgba(201,168,76,.09);border-radius:4px;padding:12px 14px;}
+.ctitle{font-size:.54rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:9px;display:flex;justify-content:space-between;align-items:center;}
+.ctitle em{font-size:.5rem;color:var(--dim);font-style:normal;}
+table.vt{width:100%;border-collapse:collapse;}
+table.vt th{font-size:.48rem;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);text-align:left;padding:0 5px 5px 0;border-bottom:1px solid rgba(255,255,255,.04);}
+table.vt td{font-size:.58rem;padding:4px 5px 4px 0;border-bottom:1px solid rgba(255,255,255,.025);vertical-align:middle;}
+table.vt tr:last-child td{border-bottom:none;}
+.vn{font-weight:700;color:var(--text);font-size:.6rem;}
+.vtype{font-size:.5rem;color:var(--muted);}
+.vsrc{font-size:.46rem;color:var(--dim);margin-top:1px;}
+.vhrs{font-size:.52rem;color:var(--muted);}
+.est{font-size:.78rem;font-weight:700;color:var(--gold);}
+.estcl{font-size:.56rem;color:var(--dim);}
+.bw{width:62px;}
+.bbg{height:4px;background:rgba(255,255,255,.05);border-radius:2px;overflow:hidden;}
+.bfill{height:100%;border-radius:2px;transition:width .5s;}
+.bl{background:var(--grn);}.bm{background:var(--gold);}.bh{background:var(--org);}.bc{background:var(--red);}.bz{background:rgba(255,255,255,.1);}
+.pill{display:inline-block;font-size:.45rem;padding:1px 5px;border-radius:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;}
+.plo{background:rgba(90,158,111,.1);color:var(--grn);border:1px solid rgba(90,158,111,.22);}
+.pme{background:rgba(201,168,76,.09);color:var(--gold);border:1px solid rgba(201,168,76,.22);}
+.phi{background:rgba(212,131,58,.1);color:var(--org);border:1px solid rgba(212,131,58,.22);}
+.pcr{background:rgba(217,79,59,.16);color:var(--red);border:1px solid rgba(217,79,59,.38);}
+.pcl{background:rgba(255,255,255,.03);color:var(--dim);border:1px solid rgba(255,255,255,.07);}
+.ppr{background:rgba(139,107,190,.1);color:var(--pur);border:1px solid rgba(139,107,190,.28);}
+
+/* RIGHT */
+.rcol{display:flex;flex-direction:column;gap:10px;}
+canvas#trC{width:100%;height:100px;display:block;margin-top:7px;}
+.ilist{margin-top:7px;display:flex;flex-direction:column;gap:6px;}
+.iitem{padding:7px 9px;background:rgba(255,255,255,.018);border-radius:3px;border-left:2px solid var(--gold);font-size:.57rem;line-height:1.55;}
+.iitem.warn{border-left-color:var(--org);}
+.iitem.good{border-left-color:var(--grn);}
+.iitem.pred{border-left-color:var(--pur);}
+.iitem .it{font-weight:700;color:var(--gold);margin-bottom:2px;font-size:.59rem;}
+.iitem.warn .it{color:var(--org);}.iitem.good .it{color:var(--grn);}.iitem.pred .it{color:var(--pur);}
+.ib{color:var(--muted);}
+.foot{padding:10px 36px 18px;font-size:.5rem;color:var(--dim);line-height:1.8;}
+.foot strong{color:var(--muted);}
+
+/* WAVE MAP CARD */
+.wmcard{background:var(--s1);border:1px solid rgba(201,168,76,.09);border-radius:4px;padding:12px 14px;margin:8px 36px 0;}
+.wmcard .ctitle{font-size:.54rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;}
+.wmcard .ctitle em{font-size:.5rem;color:var(--dim);font-style:normal;}
+.wm-mapwrap{position:relative;width:100%;height:340px;overflow:hidden;border-radius:3px;}
+#wmMap{display:block;width:100%;height:100%;background:#000;}
+.wm-legend{position:absolute;bottom:10px;left:12px;background:rgba(0,0,0,.82);border:1px solid rgba(255,255,255,.12);border-radius:4px;padding:8px 11px;font-size:.5rem;font-family:'Courier New',monospace;}
+.wm-legend .leg-title{color:var(--gold);font-weight:700;letter-spacing:.15em;text-transform:uppercase;margin-bottom:6px;}
+.wm-legend .leg-row{display:flex;align-items:center;gap:7px;margin-bottom:3px;color:#9a8d70;}
+.wm-infopanel{position:absolute;top:10px;right:12px;background:rgba(0,0,0,.85);border:1px solid rgba(255,255,255,.1);border-radius:4px;padding:9px 12px;font-size:.5rem;font-family:'Courier New',monospace;width:160px;}
+.wm-infopanel .ip-title{color:var(--gold);font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px;font-size:.52rem;}
+.wm-infopanel .ip-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;padding-bottom:3px;border-bottom:1px solid rgba(255,255,255,.04);}
+.wm-infopanel .ip-row:last-child{border-bottom:none;margin-bottom:0;}
+.wm-infopanel .ip-lbl{color:var(--muted);}
+.wm-infopanel .ip-val{color:#fff;font-weight:700;}
+.wm-infopanel .ip-val.gold{color:var(--gold);}
+.wm-infopanel .ip-val.grn{color:var(--grn);}
+.wm-infopanel .ip-val.org{color:var(--org);}
+.wm-infopanel .ip-val.red{color:var(--red);}
+.wm-infopanel .ip-val.pur{color:var(--pur);}
+.wm-vtip{position:absolute;background:rgba(0,0,0,.92);border:1px solid rgba(201,168,76,.5);border-radius:4px;padding:7px 10px;font-size:.55rem;font-family:'Courier New',monospace;pointer-events:none;opacity:0;transition:opacity .15s;max-width:180px;z-index:10;}
+.wm-vtip.show{opacity:1;}
+.wm-vtip .vtip-name{color:var(--gold);font-weight:700;margin-bottom:2px;}
+.wm-vtip .vtip-type{color:var(--muted);margin-bottom:3px;}
+.wm-vtip .vtip-count{color:#fff;font-size:.68rem;font-weight:700;}
+.wm-vtip .vtip-pct{color:var(--grn);margin-top:1px;}
+.wm-cbar{display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap;}
+.wm-btn{font-family:'Courier New',monospace;font-size:.54rem;border-radius:3px;padding:3px 8px;cursor:pointer;letter-spacing:.06em;text-transform:uppercase;transition:all .15s;border:none;}
+.wm-bghost{background:transparent;color:var(--muted);border:1px solid rgba(255,255,255,.1);}
+.wm-bghost:hover{border-color:var(--gold);color:var(--gold);}
+
+/* ── ZONE MONITOR SECTION ── */
+.zmon-wrap{margin:8px 36px 0;}
+.zmon-divider{border-top:1px solid rgba(201,168,76,.12);margin-bottom:12px;padding-top:12px;display:flex;justify-content:space-between;align-items:center;}
+.zmon-title{font-size:.54rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);}
+.zmon-title em{font-size:.46rem;color:var(--dim);font-style:normal;margin-left:8px;}
+.zmon-inner{display:grid;grid-template-columns:1fr 300px;gap:12px;}
+.zmon-left{}
+.zmon-right{background:var(--s1);border:1px solid rgba(201,168,76,.09);border-radius:4px;padding:12px 14px;}
+
+/* top stats row */
+.ztopstats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;}
+.ztcard{background:var(--s1);border:1px solid rgba(201,168,76,.09);border-radius:4px;padding:11px 13px;position:relative;overflow:hidden;}
+.ztcard::after{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent);opacity:.16;}
+.ztc-lbl{font-size:.46rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+.ztc-val{font-size:2rem;font-weight:700;color:var(--gold);line-height:1;}
+.ztc-val span{font-size:.58rem;color:var(--muted);font-weight:400;margin-left:3px;}
+.ztc-sub{margin-top:4px;font-size:.54rem;}
+.ztc-sub.zup{color:var(--red);}.ztc-sub.zdn{color:var(--grn);}.ztc-sub.zneu{color:var(--muted);}
+.ztc-crowd{display:flex;align-items:center;gap:8px;margin-top:3px;}
+.zcrowd-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
+.zcrowd-label{font-size:1.3rem;font-weight:700;}
+.zcrowd-note{font-size:.52rem;color:var(--grn);margin-top:2px;}
+
+/* 8 zone grid */
+.zone-hdr{font-size:.46rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;display:flex;justify-content:space-between;}
+.zone-hdr em{font-style:normal;font-size:.44rem;color:var(--dim);}
+.zone-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:12px;}
+.zcard{border-radius:4px;padding:10px 11px 9px;position:relative;overflow:hidden;cursor:pointer;transition:all .18s;border:1px solid transparent;}
+.zcard:hover{transform:translateY(-1px);filter:brightness(1.1);}
+.zcard.zlow  {background:rgba(30,50,35,.5);border-color:rgba(90,158,111,.2);}
+.zcard.zmod  {background:rgba(60,50,15,.5);border-color:rgba(201,168,76,.2);}
+.zcard.zhi   {background:rgba(100,45,10,.4);border-color:rgba(212,131,58,.28);}
+.zcard.zcrit {background:rgba(120,20,10,.5);border-color:rgba(192,57,43,.38);}
+.zcard.zclosed{background:rgba(15,13,8,.4);border-color:rgba(255,255,255,.05);opacity:.55;}
+.zn{font-size:.58rem;font-weight:700;color:var(--text);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.zv{font-size:1.7rem;font-weight:700;line-height:1;color:var(--gold);}
+.zcard.zcrit .zv{color:#e07060;}
+.zcard.zclosed .zv{color:var(--dim);font-size:.9rem;margin-top:3px;}
+.zstat{font-size:.44rem;color:var(--muted);margin-top:2px;}
+.zbar-wrap{margin-top:6px;height:3px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;}
+.zbar{height:100%;border-radius:2px;transition:width .5s;}
+.zcard.zlow  .zbar{background:var(--grn);}
+.zcard.zmod  .zbar{background:var(--gold);}
+.zcard.zhi   .zbar{background:var(--org);}
+.zcard.zcrit .zbar{background:var(--red);}
+.zcard.zclosed .zbar{background:rgba(255,255,255,.06);}
+.zbadge{position:absolute;top:7px;right:7px;font-size:.4rem;padding:1px 4px;border-radius:2px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;}
+.zcard.zlow   .zbadge{background:rgba(90,158,111,.15);color:var(--grn);}
+.zcard.zmod   .zbadge{background:rgba(201,168,76,.12);color:var(--gold);}
+.zcard.zhi    .zbadge{background:rgba(212,131,58,.15);color:var(--org);}
+.zcard.zcrit  .zbadge{background:rgba(192,57,43,.2);color:#e07060;}
+.zcard.zclosed .zbadge{background:rgba(255,255,255,.05);color:var(--dim);}
+
+/* zone flow mini chart */
+.zflow-wrap{background:var(--s1);border:1px solid rgba(201,168,76,.09);border-radius:4px;padding:10px 13px;}
+.zflow-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.zflow-lbl{font-size:.46rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);}
+.zflow-time{font-size:.58rem;color:var(--gold);font-weight:700;}
+.zflow-canvas-wrap{position:relative;height:110px;cursor:crosshair;user-select:none;}
+canvas#zflowC{width:100%;height:100%;display:block;}
+.zflow-thumb{position:absolute;top:0;bottom:0;width:2px;background:var(--gold);pointer-events:none;box-shadow:0 0 7px rgba(201,168,76,.5);left:-20px;}
+.zflow-thumb::before{content:'';position:absolute;top:-4px;left:-4px;width:9px;height:9px;border-radius:50%;background:var(--gold);}
+.zflow-tip{position:absolute;bottom:calc(100%+5px);transform:translateX(-50%);background:var(--s2);border:1px solid var(--gold);border-radius:3px;padding:2px 7px;font-size:.56rem;color:var(--gold);white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .1s;}
+.zflow-tip.show{opacity:1;}
+.zflow-hrlbls{display:flex;justify-content:space-between;margin-top:3px;padding:0 2px;}
+.zflow-hrlbls span{font-size:.44rem;color:var(--dim);}
+.zflow-hint{font-size:.42rem;color:var(--dim);text-align:center;letter-spacing:.08em;margin-top:2px;}
+
+/* bottom stats */
+.zbstats{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:10px;}
+.zbsc{background:var(--s1);border:1px solid rgba(201,168,76,.07);border-radius:4px;padding:9px 11px;text-align:center;}
+.zbsc-lbl{font-size:.42rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:3px;}
+.zbsc-val{font-size:1.3rem;font-weight:700;color:var(--gold);}
+.zbsc-sub{font-size:.44rem;color:var(--dim);margin-top:1px;text-transform:uppercase;letter-spacing:.07em;}
+
+/* pipeline right panel */
+.zrp-title{font-size:.46rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;}
+.zpipe-list{display:flex;flex-direction:column;gap:11px;}
+.zpipe-item{display:flex;gap:10px;align-items:flex-start;}
+.zpipe-num{width:20px;height:20px;border-radius:50%;background:rgba(201,168,76,.1);border:1px solid rgba(201,168,76,.28);display:flex;align-items:center;justify-content:center;font-size:.52rem;color:var(--gold);font-weight:700;flex-shrink:0;margin-top:1px;}
+.zpipe-name{font-size:.56rem;font-weight:700;color:var(--gold);margin-bottom:2px;}
+.zpipe-desc{font-size:.48rem;color:var(--muted);line-height:1.55;}
+.zzone-detail{margin-top:16px;border-top:1px solid rgba(255,255,255,.05);padding-top:12px;}
+.zzd-title{font-size:.46rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+.zzd-venue{padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04);display:flex;justify-content:space-between;align-items:center;}
+.zzd-venue:last-child{border-bottom:none;}
+.zzd-name{font-size:.52rem;color:var(--text);}
+.zzd-type{font-size:.44rem;color:var(--dim);margin-top:1px;}
+.zzd-count{font-size:.66rem;font-weight:700;color:var(--gold);}
+.zzd-count.closed{color:var(--dim);font-size:.5rem;}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="h1">TALAD NOI · ตลาดน้อย</div>
+    <div class="hsub">25-Venue Crowd Model · Real Data + Future Projection · Bangkok, TH</div>
+  </div>
+  <div class="hright">
+    <div class="livechip"><div class="ldot" id="ldot"></div><span id="llabel">Connecting…</span></div>
+    <div class="warnchip">⚠ ESTIMATES ONLY · NO SENSORS INSTALLED</div>
+  </div>
+</header>
+
+<div class="cbar">
+  <button class="btn bnow active" id="btnNow" onclick="goNow()">⊙ NOW</button>
+  <select id="daySel" onchange="onDayChange()">
+    <option value="auto">Auto (Today)</option>
+    <option value="weekday">Weekday</option>
+    <option value="weekend">Weekend / Holiday</option>
+    <option value="festival">Festival / CNY</option>
+  </select>
+  <button class="btn bghost" onclick="resetAll()">↺ Reset</button>
+  <span style="font-size:.54rem;color:var(--dim)">FUTURE:</span>
+  <button class="btn bpred" id="bp10"  onclick="setPred(10)">+10 yr</button>
+  <button class="btn bpred" id="bp50"  onclick="setPred(50)">+50 yr</button>
+  <button class="btn bpred" id="bp100" onclick="setPred(100)">+100 yr</button>
+  <button class="btn bpred" id="bp150" onclick="setPred(150)">+150 yr</button>
+  <div class="mpill live" id="mpill">⊙ LIVE — REAL TIME</div>
+</div>
+
+<div class="srcbar">
+  <strong>Verified sources:</strong>
+  <span>Mother Roaster @Instagram (10am–5pm daily)</span>
+  <span>Hong Sieng Kong · DanielFoodDiary (10am–10pm, cl.Mon)</span>
+  <span>So Heng Tai · phuket101.net (9am–6pm, cl.Mon)</span>
+  <span>Ped Toon Jao Ta · expique.com (9:30am–9pm, Fri–Mon)</span>
+  <span>Foojohn Jazz · tripadvisor (7pm–midnight, Wed–Sun)</span>
+  <span>Talat Noi Museum · tourismthailand.org (Tue–Fri 8:30am–4:30pm / Sat–Sun 10am–6pm)</span>
+  <span>Warehouse 30 · yourthaiguide.com (7am–1am)</span>
+  <span>Timo &amp; Tintin · BK Mag / CK Travels (est. 9am–5pm)</span>
+  <span>River City · Official (10am–8pm)</span>
+  <span>Blacksmith Cafe · BK Mag (est. 8am–5pm)</span>
+  <span>Bangkok pop. growth 1.34%/yr · UN 2026</span>
+  <span>Tourism CAGR 3%· Intellify 2025</span>
+  <span>Bangkok temp +8.2% by 2050 · WorldClim/APN</span>
+  <span>Hot days 297–344/yr by 2100 · NASA GISS</span>
+</div>
+
+<!-- TIMELINE -->
+<div class="tlwrap">
+  <div class="tlcard">
+    <div class="tlhdr">
+      <div class="tllbl">24-Hour Combined Activity Curve · All 25 Venues</div>
+      <div class="tlread" id="tlread">—</div>
+    </div>
+    <div class="swrap" id="sw">
+      <canvas id="tlC" class="sc"></canvas>
+      <div class="thumb" id="thumb"></div>
+      <div class="tip" id="tip"></div>
+    </div>
+    <div class="hrlbls">
+      <span>00:00</span><span>03:00</span><span>06:00</span><span>09:00</span>
+      <span>12:00</span><span>15:00</span><span>18:00</span><span>21:00</span><span>23:59</span>
+    </div>
+    <div class="tlhint">CLICK or DRAG to explore any hour · DOUBLE-CLICK to return to NOW</div>
+  </div>
+</div>
+
+<!-- PRED BANNER -->
+<div class="pbanner" id="pbanner">
+  <div class="pbinfo">
+    <div class="pbtitle" id="pbtitle">Future Projection</div>
+    <div class="pbnote" id="pbnote">—</div>
+  </div>
+  <div class="pbchips" id="pbchips"></div>
+</div>
+
+<!-- WAVE MAP CARD -->
+<div class="wmcard">
+  <div class="ctitle">Population Wave Map · Concentric Density Rings per Venue <em id="wmTimelbl">← synced with timeline above</em></div>
+  <div class="wm-cbar">
+    <button class="wm-btn wm-bghost" onclick="wmToggleLabels()">⊞ Labels</button>
+    <button class="wm-btn wm-bghost" onclick="wmToggleRoads()">⊟ Roads</button>
+  </div>
+  <div class="wm-mapwrap" id="wmMapwrap">
+    <canvas id="wmMap"></canvas>
+    <div class="wm-legend">
+      <div class="leg-title">Ring Density</div>
+      <div class="leg-row"><svg width="22" height="10"><line x1="0" y1="5" x2="22" y2="5" stroke="rgba(255,255,255,0.9)" stroke-width="1.5"/></svg>Very Busy</div>
+      <div class="leg-row"><svg width="22" height="10"><line x1="0" y1="5" x2="22" y2="5" stroke="rgba(255,255,255,0.5)" stroke-width="1"/></svg>Moderate</div>
+      <div class="leg-row"><svg width="22" height="10"><line x1="0" y1="5" x2="22" y2="5" stroke="rgba(255,255,255,0.2)" stroke-width="0.8"/></svg>Quiet</div>
+      <div class="leg-row" style="margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,.07)">
+        <svg width="10" height="10"><circle cx="5" cy="5" r="4" fill="#c9a84c"/></svg>Venue center
+      </div>
+      <div class="leg-row"><svg width="10" height="10"><circle cx="5" cy="5" r="4" fill="rgba(255,255,255,.1)" stroke="rgba(255,255,255,.3)" stroke-width="1"/></svg>Closed</div>
+    </div>
+    <div class="wm-infopanel">
+      <div class="ip-title">Wave Map Stats</div>
+      <div class="ip-row"><span class="ip-lbl">Total est.</span><span class="ip-val gold" id="wmTotal">—</span></div>
+      <div class="ip-row"><span class="ip-lbl">Open venues</span><span class="ip-val grn" id="wmOpen">—</span></div>
+      <div class="ip-row"><span class="ip-lbl">Crowd level</span><span class="ip-val" id="wmCrowd">—</span></div>
+      <div class="ip-row"><span class="ip-lbl">Hotspot</span><span class="ip-val gold" id="wmHot">—</span></div>
+    </div>
+    <div class="wm-vtip" id="wmVtip">
+      <div class="vtip-name" id="wmVtName">—</div>
+      <div class="vtip-type" id="wmVtType">—</div>
+      <div class="vtip-count" id="wmVtCount">—</div>
+      <div class="vtip-pct" id="wmVtPct">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- STATS -->
+<div class="statsrow">
+  <div class="scard"><div class="slbl">Est. Visitors Now</div><div class="sval" id="sv1">— <span>ppl</span></div><div class="ssub sneu" id="ss1">drag timeline ←</div></div>
+  <div class="scard"><div class="slbl">Venues Open</div><div class="sval" id="sv2">— <span>/ 25</span></div><div class="ssub sneu" id="ss2">—</div></div>
+  <div class="scard"><div class="slbl">Crowd Level</div><div class="sval" id="sv3" style="font-size:1.1rem;margin-top:2px;">—</div><div class="ssub sneu" id="ss3">—</div></div>
+  <div class="scard"><div class="slbl">Best Time Today</div><div class="sval" id="sv4" style="font-size:1.05rem;margin-top:2px;">—</div><div class="ssub sneu" id="ss4">—</div></div>
+  <div class="scard"><div class="slbl">Future Projection</div><div class="sval" id="sv5" style="font-size:1rem;margin-top:2px;">—</div><div class="ssub spur" id="ss5">select +yr above</div></div>
+</div>
+
+<!-- BODY -->
+<div class="body">
+  <div class="vcard">
+    <div class="ctitle dropdown-toggle" id="venueDropdownToggle" onclick="toggleVenueDropdown()">
+      <span>All 25 Venues · Verified Opening Hours <em id="vtNote">← drag timeline</em></span>
+      <span class="dropdown-icon" id="venueDropdownIcon">▼</span>
+    </div>
+    <div class="dropdown-content" id="venueDropdownContent">
+      <table class="vt">
+        <thead><tr>
+          <th>Venue</th><th>Type</th><th>Hours</th><th>Est.</th><th style="width:62px"></th><th>Status</th>
+        </tr></thead>
+        <tbody id="vtb"><tr><td colspan="6" style="color:var(--dim);font-size:.58rem;padding:16px 0;text-align:center;">← Drag the timeline above to see estimates</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="rcol">
+    <div class="rcard">
+      <div class="ctitle">Combined Activity — All Venues</div>
+      <canvas id="trC"></canvas>
+    </div>
+    <div class="rcard" style="flex:1">
+      <div class="ctitle">Analysis &amp; Insights <em id="iHr"></em></div>
+      <div class="ilist" id="ilist">
+        <div class="iitem" style="border-left-color:var(--dim)">
+          <div class="it" style="color:var(--dim)">Waiting for input</div>
+          <div class="ib">Select a time on the timeline to generate crowd analysis.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="foot">
+  <strong>Data confidence: LOW–MEDIUM.</strong>
+  Opening hours verified from: @motherroaster Instagram, DanielFoodDiary, phuket101.net, expique.com, bk.asia-city.com, passportandstamps.com, cktravels.com, cathaypacific.com, tourismthailand.org, foojohnjazzclub.wootick.com, yourthaiguide.com (2021–2025).
+  Crowd estimates from qualitative descriptions ("always full", "hordes of tourists", "quiet weekday mornings"). No official footfall data exists.
+  Future projections: Tourism CAGR 3.0% (Intellify 2025) · Bangkok pop. growth 1.34%/yr (UN 2026) · Temp +8.2% by 2050, 297–344 hot days/yr by 2100 (NASA GISS / WorldClim) · Bangkok 2050 urbanisation scenarios (Arup / FutureTales LAB).
+  <strong>All numbers are directional estimates only.</strong>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- ZONE FLOW MONITOR — 8 Geographic Zones                  -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="zmon-wrap">
+  <div class="zmon-divider">
+    <div class="zmon-title">Zone Flow Monitor · 8 Geographic Areas <em>· People Flow Algorithm</em></div>
+  </div>
+  <div class="zmon-inner">
+
+    <!-- LEFT: stats + zones + chart -->
+    <div class="zmon-left">
+
+      <div class="ztopstats">
+        <div class="ztcard">
+          <div class="ztc-lbl">Total People Now</div>
+          <div class="ztc-val" id="ztcTotal">— <span>people</span></div>
+          <div class="ztc-sub zneu" id="ztcSub">—</div>
+        </div>
+        <div class="ztcard">
+          <div class="ztc-lbl">Avg Crowd Density</div>
+          <div class="ztc-val" id="ztcDens">— <span>p/100m²</span></div>
+          <div class="ztc-sub zneu" id="ztcDensSub">—</div>
+        </div>
+        <div class="ztcard">
+          <div class="ztc-lbl">Crowd Level</div>
+          <div class="ztc-crowd">
+            <div class="zcrowd-dot" id="zcrowdDot" style="background:var(--muted)"></div>
+            <div class="zcrowd-label" id="zcrowdLabel" style="color:var(--muted)">—</div>
+          </div>
+          <div class="zcrowd-note" id="zcrowdNote">—</div>
+        </div>
+      </div>
+
+      <div class="zone-hdr">
+        Zone Monitoring · 8 Key Areas <em id="zzoneHrNote">synced with timeline above ↑</em>
+      </div>
+      <div class="zone-grid" id="zoneGrid"></div>
+
+      <div class="zflow-wrap">
+        <div class="zflow-hdr">
+          <div class="zflow-lbl">24-Hour Flow Pattern · Today</div>
+          <div class="zflow-time" id="zflowTime">—</div>
+        </div>
+        <div class="zflow-canvas-wrap" id="zfcWrap">
+          <canvas id="zflowC"></canvas>
+          <div class="zflow-thumb" id="zflowThumb"></div>
+          <div class="zflow-tip" id="zflowTip"></div>
+        </div>
+        <div class="zflow-hrlbls">
+          <span>0:00</span><span>3:00</span><span>6:00</span><span>9:00</span>
+          <span>12:00</span><span>15:00</span><span>18:00</span><span>21:00</span><span>23:00</span>
+        </div>
+        <div class="zflow-hint">SYNCED with timeline above · DRAG to explore independently</div>
+      </div>
+
+      <div class="zbstats">
+        <div class="zbsc"><div class="zbsc-lbl">Peak Today</div><div class="zbsc-val" id="zbsPeak">—</div><div class="zbsc-sub">people</div></div>
+        <div class="zbsc"><div class="zbsc-lbl">Daily Avg</div><div class="zbsc-val" id="zbsAvg">—</div><div class="zbsc-sub">people</div></div>
+        <div class="zbsc"><div class="zbsc-lbl">Entries / Hr</div><div class="zbsc-val" id="zbsEntry">—</div><div class="zbsc-sub">est. inflow</div></div>
+        <div class="zbsc"><div class="zbsc-lbl">Exits / Hr</div><div class="zbsc-val" id="zbsExit">—</div><div class="zbsc-sub">est. outflow</div></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: pipeline + zone detail -->
+    <div class="zmon-right">
+      <div class="zrp-title">Algorithm Pipeline</div>
+      <div class="zpipe-list">
+        <div class="zpipe-item">
+          <div class="zpipe-num">1</div>
+          <div><div class="zpipe-name">Input Sensor Fusion</div>
+          <div class="zpipe-desc">Aggregate verified data from Instagram check-ins, Google popularity peaks, and qualitative reports across 25 venues in 8 geographic zones.</div></div>
+        </div>
+        <div class="zpipe-item">
+          <div class="zpipe-num">2</div>
+          <div><div class="zpipe-name">Noise Filtering</div>
+          <div class="zpipe-desc">Discount closed venues (Mon closures, hours outside window) and apply capacity hard caps per venue.</div></div>
+        </div>
+        <div class="zpipe-item">
+          <div class="zpipe-num">3</div>
+          <div><div class="zpipe-name">Zone Count Estimation</div>
+          <div class="zpipe-desc">Zone(t) = Σ venues × profile_intensity × peak_boost × pop_modifier, bounded by max capacity.</div></div>
+        </div>
+        <div class="zpipe-item">
+          <div class="zpipe-num">4</div>
+          <div><div class="zpipe-name">Density Calculation</div>
+          <div class="zpipe-desc">Density = People ÷ Zone Area m². Thresholds: Low (&lt;2), Moderate (2–5), High (5–10), Critical (&gt;10 per 100m²).</div></div>
+        </div>
+        <div class="zpipe-item">
+          <div class="zpipe-num">5</div>
+          <div><div class="zpipe-name">Time-Pattern Matching</div>
+          <div class="zpipe-desc">Cross-reference 24-pt hourly shape curves (weekday / weekend / festival) to validate and predict next-interval load.</div></div>
+        </div>
+        <div class="zpipe-item">
+          <div class="zpipe-num">6</div>
+          <div><div class="zpipe-name">Alert &amp; Output</div>
+          <div class="zpipe-desc">Flag zones at &gt;80% capacity as CRITICAL. Recalculate flow rate from δ(count) between 30-min intervals.</div></div>
+        </div>
+      </div>
+      <div class="zzone-detail">
+        <div class="zzd-title" id="zzdTitle">Zone Detail · hover a zone card</div>
+        <div id="zzdList"><div style="font-size:.5rem;color:var(--dim);padding:6px 0;">Hover any zone to see venue breakdown</div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// 25 VENUES — all hours verified from published sources
+// ═══════════════════════════════════════════════════════
+// days: 0=Sun,1=Mon,2=Tue,3=Wed,4=Thu,5=Fri,6=Sat
+const VENUES = [
+  // ── CAFES & COFFEE ──
+  {n:"Mother Roaster",        type:"Specialty Coffee",       o:10,  c:17, days:[0,1,2,3,4,5,6], cap:40,  pop:1.2, ph:[10,11,14,15], src:"@motherroaster Instagram",         note:"Founded 2018. 'Always full'. Drip coffee, Thai beans. Sparked Talad Noi cafe boom."},
+  {n:"Timo & Tintin",         type:"Multi-floor Cafe/Gallery",o:9,  c:17, days:[0,1,2,3,4,5,6], cap:60,  pop:1.0, ph:[10,11,14,15,16], src:"BK Mag · CK Travels 2025",      note:"Rooftop view. Gallery floors 3–4. 'Usually closes 5–6pm' — CK Travels."},
+  {n:"La Cabra Coffee",       type:"Scandinavian Roastery",  o:8,   c:18, days:[0,1,2,3,4,5,6], cap:45,  pop:1.05,ph:[9,10,15,16],  src:"lacabra.dk Talad Noi outpost",     note:"Danish third-wave roastery. Croissants. High-end."},
+  {n:"Blacksmith Cafe",       type:"Local Cafe (7-seater)",  o:8,   c:17, days:[0,1,2,3,4,5,6], cap:12,  pop:0.9, ph:[9,10,14,15],  src:"BK Magazine",                      note:"Tiny, cozy. Espresso B35, local pastries. Named for its logo."},
+  {n:"32Bar Chocolate",       type:"Craft Chocolate Bar",    o:10,  c:18, days:[0,1,2,3,4,5,6], cap:25,  pop:1.1, ph:[13,14,15],    src:"CK Travels 2025 · TikTok viral",   note:"Viral on TikTok. Thai craft chocolate. 32g–40g bars."},
+  {n:"Citizen Tea Canteen",   type:"Thai Tea House",         o:10,  c:18, days:[0,1,2,3,4,5,6], cap:30,  pop:0.9, ph:[11,14,15],    src:"caffeinespots / passportandstamps", note:"Chui Xian Milk Tea. Art gallery-style decor. Sells bags and tapestries."},
+  {n:"Vanish House",          type:"Cafe / Craft Souvenir",  o:10,  c:18, days:[0,1,2,3,4,5,6], cap:25,  pop:0.85,ph:[13,14,15],    src:"passportandstamps.com",            note:"Rustic barn feel. Wooden swing. Izakaya-style at night. New discovery."},
+  {n:"PhotoHostel Cafe",      type:"Hostel Cafe / Gift Shop",o:9,   c:18, days:[0,1,2,3,4,5,6], cap:30,  pop:0.8, ph:[10,11,14,15], src:"CK Travels 2025 · 200yr old house", note:"200-year old Thai house. Vintage cameras. Good souvenir shop."},
+
+  // ── FOOD ──
+  {n:"Ped Toon Jao Ta",       type:"Traditional Restaurant", o:9.5, c:21, days:[0,5,6,4],       cap:50,  pop:0.9, ph:[12,13,18,19], src:"expique.com · Fri–Mon only",       note:"40+ yr institution. Ped Palo (roast duck). Famous locals + tourists."},
+  {n:"Henryfry Fried Chicken",type:"Street Food / Chicken",  o:11,  c:21, days:[0,1,2,3,4,5,6], cap:35,  pop:1.1, ph:[12,13,18,19,20],src:"passportandstamps / CK Travels", note:"'Huge queues at weekend.' 55–60 THB/piece. Backpacker favourite."},
+  {n:"Duck Noodle Stall",     type:"Street Stall (3rd-gen)", o:9,   c:16, days:[0,2,4,5,6],     cap:18,  pop:1.0, ph:[11,12,13],    src:"BK Magazine · Tue/Thu/Sat/Sun",    note:"Duck intestine salad. Sells out early. 3rd-generation vendor."},
+  {n:"Pu Curry Puffs",        type:"Street Vendor (30+ yr)", o:8,   c:17, days:[0,1,2,3,4,5,6], cap:15,  pop:1.1, ph:[10,11,12],    src:"BK Magazine · 30+ years",          note:"'Flakiest puffs in town.' No Google Maps listing. Cash only."},
+  {n:"Hiab Tiang Pastry Shop",type:"Chinese Pastry (Heritage)",o:8, c:17, days:[0,1,2,3,4,5,6], cap:20,  pop:0.8, ph:[9,10,11],     src:"cathaypacific.com 2025",           note:"Family-run Chinese pastry. Heritage shophouse. Chinatown roots."},
+  {n:"Very Nice Bar",         type:"Izakaya / Japanese Bar",  o:17,  c:24, days:[0,2,3,4,5,6],  cap:40,  pop:0.9, ph:[19,20,21,22], src:"passportandstamps.com",            note:"Japanese-style cocktails and food. Opens evenings. Closed Mon/Tue."},
+  {n:"Hong Sieng Kong",       type:"Riverside Cafe / Bar",   o:10,  c:22, days:[0,2,3,4,5,6],   cap:120, pop:1.15,ph:[16,17,18,19], src:"DanielFoodDiary · cl.Mon",          note:"Sunset peak. 'Myriad tourists'. Riverside terrace. Closed Mon."},
+
+  // ── NIGHTLIFE ──
+  {n:"Foojohn Jazz Club",     type:"Jazz Club / Bar",        o:19,  c:24, days:[0,3,4,5,6],     cap:80,  pop:1.0, ph:[20,21,22],    src:"foojohnjazzclub.wootick.com · Wed–Sun",note:"Live jazz 8pm–midnight. Wed–Sun only. Book ahead. 831 Charoen Krung 31."},
+
+  // ── CULTURAL / HERITAGE ──
+  {n:"So Heng Tai Mansion",   type:"Heritage Museum / Cafe", o:9,   c:18, days:[0,2,3,4,5,6],   cap:60,  pop:0.95,ph:[10,11,14,15], src:"phuket101.net · 50 THB, cl.Mon",   note:"250-yr old mansion. Diving pool inside. 50 THB entry or free with cafe."},
+  {n:"Talat Noi Museum",      type:"Community Museum",       o:8.5, c:16.5,days:[0,2,3,4],      cap:30,  pop:0.7, ph:[10,11,13,14], src:"tourismthailand.org · Tue–Fri only",note:"3 floors. Coins, history, animated film. Tue–Fri 8:30–16:30. Free entry."},
+  {n:"Rong Kueak Shrine",     type:"Chinese Temple (Rama V)",o:6,   c:20, days:[0,1,2,3,4,5,6], cap:80,  pop:1.1, ph:[8,9,10,15,16],src:"xyzasia.com · open-air shrine",    note:"Free entry. Every guide lists this. Lively during CNY."},
+  {n:"Chow Sue Kong Shrine",  type:"Hokkien Shrine (1804)",  o:6,   c:20, days:[0,1,2,3,4,5,6], cap:60,  pop:0.9, ph:[8,9,14,15],   src:"xyzasia.com · 200+ yr old",        note:"Oldest Hokkien shrine in BKK. Ornate bell at entrance."},
+  {n:"Holy Rosary Church",    type:"Catholic Church (1786)", o:6,   c:19, days:[0,1,2,3,4,5,6], cap:80,  pop:0.7, ph:[9,10,16,17],  src:"expique.com · heritage landmark",  note:"Gothic Revival. Built by Portuguese. Gothic arched doors."},
+  {n:"Heng Seng Cushion Shop",type:"Craft Workshop (100+ yr)",o:9,  c:17, days:[0,2,3,4,5,6],   cap:15,  pop:0.7, ph:[10,11,14,15], src:"cathaypacific.com / expique.com",  note:"Only handmade prayer cushion shop left in Talad Noi. 100+ years. Workshops available."},
+
+  // ── OUTDOOR / STREETS ──
+  {n:"Mural Alley (Trok 22)", type:"Street Art Walk",        o:7,   c:20, days:[0,1,2,3,4,5,6], cap:150, pop:1.25,ph:[9,10,11,15,16],src:"Multiple guides · outdoor",        note:"'Hordes of tourists' on weekends. Alex Face, Lolay, Sabek murals. Best early AM."},
+  {n:"Antique Turtle Car",    type:"Outdoor Photo Spot",     o:7,   c:19, days:[0,1,2,3,4,5,6], cap:35,  pop:1.2, ph:[9,10,14,15,16],src:"CK Travels 2025 · 'always a shoot'",note:"Rusted Fiat 500. 'Always seems to be a photo shoot on.' Free."},
+  {n:"Warehouse 30",          type:"Creative Hub / Events",  o:7,   c:25, days:[0,1,2,3,4,5,6], cap:200, pop:0.95,ph:[14,15,16,17,18,19,20],src:"yourthaiguide.com · 7am–1am",note:"Gate 7am–1am. Individual vendors open from ~10am. Art + events."},
+];
+
+// ── DAY PROFILES ─────────────────────────────────────────
+const PROFILES = {
+  weekday:{
+    lbl:"WEEKDAY", mult:0.55,
+    shape:[0,0,0,0,0,0, 0.07,0.2,0.42,0.62,0.72,0.66, 0.5,0.58,0.68,0.8,0.74,0.6, 0.42,0.28,0.18,0.12,0.06,0.02],
+    best:"9–11 am", bestNote:"Quiet, great light",
+    peak:"3–5 pm", crowdPeak:"MODERATE",
+  },
+  weekend:{
+    lbl:"WEEKEND", mult:1.0,
+    shape:[0,0,0,0,0,0, 0.04,0.14,0.44,0.76,0.9,0.84, 0.62,0.74,0.9,1.0,1.0,0.88, 0.66,0.44,0.28,0.16,0.06,0.01],
+    best:"8–10 am", bestNote:"Before crowds arrive",
+    peak:"3–6 pm", crowdPeak:"BUSY → VERY BUSY",
+  },
+  festival:{
+    lbl:"FESTIVAL/CNY", mult:1.55,
+    shape:[0,0,0,0,0,0, 0.08,0.28,0.62,0.88,0.96,0.92, 0.78,0.86,0.96,1.0,1.0,0.96, 0.84,0.64,0.44,0.24,0.1,0.02],
+    best:"Before 9 am", bestNote:"Very crowded all day",
+    peak:"3–8 pm", crowdPeak:"VERY BUSY → CRITICAL",
+  },
+};
+
+// ── FUTURE PROJECTION DATA ───────────────────────────────
+// Sources: Thailand tourism CAGR 3% (Intellify 2025),
+//   Bangkok pop growth 1.34%/yr (UN 2026),
+//   Temp +8.2% by 2050 (WorldClim),
+//   Hot days 297–344 by 2100 (NASA GISS),
+//   Bangkok 2050 urbanisation (Arup/FutureTales LAB)
+const PRED = {
+  10: {
+    mult:1.34,
+    title:"+10 Years (2035)",
+    note:"Tourism CAGR 3% × 10yr. MRT Blue Line extension to area boosts access. Bangkok pop. +14%.",
+    facts:["Tourism ×1.34","Pop. +14%","MRT access improving","Heat: +2–3 more extreme days/yr"],
+  },
+  50: {
+    mult:2.43,
+    title:"+50 Years (2075)",
+    note:"Tourism CAGR 3% × 50yr. Bangkok temp +8.2% (WorldClim 2050). Heat forces shift to evening tourism. Sea-level rise may affect riverside venues.",
+    facts:["Tourism ×2.43","BKK temp +8.2%","Evening tourism dominant","Riverside flood risk high"],
+  },
+  100: {
+    mult:4.38,
+    title:"+100 Years (2125)",
+    note:"Compound growth tapers — UN world pop peaks ~2084. NASA: 297–344 extreme hot days/yr by 2100. Heritage preservation tensions intensify.",
+    facts:["Tourism ×4.38 (tapered)","297–344 hot days/yr","Heritage vs density tension","Talad Noi status: UNESCO candidate?"],
+  },
+  150: {
+    mult:6.2,
+    title:"+150 Years (2175)",
+    note:"Highly speculative. Based on slow compound growth post-peak population. Climate: Bangkok partially below sea level. Talad Noi may be elevated/enclosed heritage precinct.",
+    facts:["Highly speculative","Bangkok partial submersion risk","Heritage precinct likely","Tourism pattern unrecognisable"],
+  },
+};
+
+// ── STATE ────────────────────────────────────────────────
+let curDay = 'auto';
+let curHour = null;   // null = live auto mode
+let predYears = null;
+let liveTimer = null;
+let isDrag = false;
+
+function resolvedDay(){
+  if(curDay !== 'auto') return curDay;
+  const d = new Date().getDay();
+  return (d===0||d===6) ? 'weekend' : 'weekday';
+}
+
+function nowHour(){
+  const n = new Date();
+  return n.getHours() + n.getMinutes()/60;
+}
+
+// ── VENUE ESTIMATION ─────────────────────────────────────
+function venueCount(v, hour, dayType){
+  const p = PROFILES[dayType];
+  const h = Math.floor(hour) % 24;
+  const frac = hour - Math.floor(hour);
+  const closeH = v.c > 24 ? v.c - 24 : v.c;
+  const isOpen = v.c > 24
+    ? (hour >= v.o || hour < closeH)
+    : (hour >= v.o && hour < v.c);
+  if(!isOpen) return 0;
+  const i0 = p.shape[h] || 0;
+  const i1 = p.shape[(h+1)%24] || 0;
+  const intensity = i0 + (i1-i0)*frac;
+  const isPeak = v.ph.includes(h);
+  const boost = isPeak ? 1.38 : 0.82;
+  const popMod = v.pop;
+  return Math.max(0, Math.min(v.cap, Math.round(v.cap * p.mult * intensity * boost * popMod)));
+}
+
+function totalAt(hour, dayType){
+  return VENUES.reduce((s,v)=>s+venueCount(v,hour,dayType),0);
+}
+
+function curve48(dayType){
+  return Array.from({length:48},(_,i)=>totalAt((i/48)*24, dayType));
+}
+
+// ── TIMELINE CANVAS ──────────────────────────────────────
+const sw = document.getElementById('sw');
+const tlC = document.getElementById('tlC');
+const thumb = document.getElementById('thumb');
+const tip = document.getElementById('tip');
+
+function drawTL(){
+  const rect = sw.getBoundingClientRect();
+  if(!rect.width) return;
+  tlC.width = rect.width*2; tlC.height = rect.height*2;
+  const ctx = tlC.getContext('2d');
+  ctx.scale(2,2);
+  const W=rect.width, H=rect.height;
+  const day = resolvedDay();
+  const data = curve48(day);
+  const maxV = Math.max(...data,1);
+  const pad = 4;
+  const sX = (W-pad*2)/(data.length-1);
+
+  ctx.clearRect(0,0,W,H);
+  // shade closed
+  ctx.fillStyle='rgba(255,255,255,.012)';
+  ctx.fillRect(pad,0,(8/48)*(W-pad*2),H);
+  ctx.fillRect(pad+(20/48)*(W-pad*2),0,(28/48)*(W-pad*2),H);
+  // grid
+  ctx.strokeStyle='rgba(255,255,255,.04)'; ctx.lineWidth=1;
+  [.25,.5,.75].forEach(p=>{ctx.beginPath();ctx.moveTo(0,H*p);ctx.lineTo(W,H*p);ctx.stroke();});
+  // area
+  const g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'rgba(201,168,76,.28)'); g.addColorStop(1,'rgba(201,168,76,0)');
+  ctx.beginPath();
+  data.forEach((v,i)=>{const x=pad+i*sX,y=H-pad-(v/maxV)*(H-pad*2);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
+  ctx.lineTo(pad+(data.length-1)*sX,H);ctx.lineTo(pad,H);ctx.closePath();
+  ctx.fillStyle=g;ctx.fill();
+  // line
+  ctx.beginPath();ctx.strokeStyle='#C9A84C';ctx.lineWidth=1.8;
+  data.forEach((v,i)=>{const x=pad+i*sX,y=H-pad-(v/maxV)*(H-pad*2);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
+  ctx.stroke();
+  // open-venue overlay
+  ctx.beginPath();ctx.strokeStyle='rgba(90,158,111,.18)';ctx.lineWidth=1;
+  Array.from({length:48},(_,i)=>{
+    const h=(i/48)*24;
+    const openN=VENUES.filter(v=>{const cl=v.c>24?v.c-24:v.c;return v.c>24?(h>=v.o||h<cl):(h>=v.o&&h<v.c);}).length;
+    const x=pad+i*sX,y=H-pad-(openN/25)*(H-pad*2);
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  });ctx.stroke();
+  // y labels
+  ctx.fillStyle='rgba(122,109,80,.55)';ctx.font='8px Courier New';ctx.textAlign='right';
+  [.5,1].forEach(p=>ctx.fillText(Math.round(maxV*(1-p)),W-3,H*p+3));
+  // current hour tick
+  if(curHour!==null){
+    const si=(curHour/24)*48;
+    const sx=pad+si*sX;
+    const sv2=totalAt(curHour,day);
+    const sy=H-pad-(sv2/maxV)*(H-pad*2);
+    ctx.beginPath();ctx.strokeStyle='rgba(201,168,76,.45)';ctx.lineWidth=1;ctx.setLineDash([3,3]);
+    ctx.moveTo(sx,pad);ctx.lineTo(sx,H-pad);ctx.stroke();ctx.setLineDash([]);
+    ctx.beginPath();ctx.arc(sx,sy,4.5,0,Math.PI*2);ctx.fillStyle='#C9A84C';ctx.fill();
+  }
+}
+
+function thumbFrac(frac){
+  const w=sw.getBoundingClientRect().width;
+  if(w>0) thumb.style.left=`${frac*w}px`;
+}
+
+function getFrac(e){
+  const r=sw.getBoundingClientRect();
+  const cx=e.touches?e.touches[0].clientX:e.clientX;
+  return Math.max(0,Math.min(1,(cx-r.left)/r.width));
+}
+
+function onDrag(e){
+  if(!isDrag) return;
+  const frac=getFrac(e);
+  const hour=frac*24;
+  const hh=String(Math.floor(hour)).padStart(2,'0');
+  const mm=String(Math.floor((hour%1)*60)).padStart(2,'0');
+  const tot=totalAt(hour,resolvedDay());
+  curHour=hour;
+  thumbFrac(frac);
+  tip.textContent=`${hh}:${mm}  ·  ~${tot} ppl`;
+  tip.style.left=`${frac*sw.getBoundingClientRect().width}px`;
+  tip.classList.add('show');
+  document.getElementById('tlread').textContent=`${hh}:${mm}`;
+  document.getElementById('mpill').textContent=`◈ ${hh}:${mm}`;
+  document.getElementById('mpill').className='mpill scrub';
+  document.getElementById('ldot').style.background='var(--gold)';
+  document.getElementById('llabel').textContent='Scrubbing…';
+  document.getElementById('btnNow').classList.remove('active');
+  renderAll(hour);
+  drawTL();
+  e.preventDefault();
+}
+
+sw.addEventListener('mousedown',  e=>{isDrag=true;onDrag(e);});
+sw.addEventListener('touchstart', e=>{isDrag=true;onDrag(e);},{passive:false});
+window.addEventListener('mousemove', onDrag);
+window.addEventListener('touchmove', onDrag,{passive:false});
+window.addEventListener('mouseup',  ()=>{isDrag=false;tip.classList.remove('show');});
+window.addEventListener('touchend', ()=>{isDrag=false;tip.classList.remove('show');});
+sw.addEventListener('dblclick', goNow);
+
+// ── RENDER ALL ───────────────────────────────────────────
+function crowdLbl(tot){
+  if(tot===0)   return{t:'CLOSED',c:'sneu'};
+  if(tot<80)    return{t:'🟢 VERY QUIET',c:'sdn'};
+  if(tot<200)   return{t:'🟡 MODERATE',c:'sneu'};
+  if(tot<380)   return{t:'🟠 BUSY',c:'swarn'};
+  return              {t:'🔴 VERY BUSY',c:'sup'};
+}
+
+function pillCfg(count,cap){
+  if(!count)          return{cls:'pcl',t:'CLOSED'};
+  const r=count/cap;
+  if(r<.3)            return{cls:'plo',t:'QUIET'};
+  if(r<.6)            return{cls:'pme',t:'MODERATE'};
+  if(r<.85)           return{cls:'phi',t:'BUSY'};
+  return               {cls:'pcr',t:'VERY BUSY'};
+}
+
+function barCls(count,cap){
+  if(!count) return 'bz';
+  const r=count/cap;
+  return r<.3?'bl':r<.6?'bm':r<.85?'bh':'bc';
+}
+
+function renderAll(hour){
+  const day = resolvedDay();
+  const hh = String(Math.floor(hour)).padStart(2,'0');
+  const mm = String(Math.floor((hour%1)*60)).padStart(2,'0');
+  const counts = VENUES.map(v=>venueCount(v,hour,day));
+  const total = counts.reduce((a,b)=>a+b,0);
+  const openN = counts.filter(c=>c>0).length;
+  const lbl = crowdLbl(total);
+  const prof = PROFILES[day];
+
+  // stats row
+  document.getElementById('sv1').innerHTML=`~${total} <span>ppl</span>`;
+  document.getElementById('ss1').textContent=`across ${openN} open venues`;
+  document.getElementById('ss1').className='ssub sneu';
+  document.getElementById('sv2').innerHTML=`${openN} <span>/ 25</span>`;
+  document.getElementById('ss2').textContent=openN<5?'Most closed':openN<14?'Partial activity':'Full activity';
+  document.getElementById('ss2').className='ssub '+(openN<5?'sup':'sdn');
+  document.getElementById('sv3').textContent=lbl.t;
+  document.getElementById('ss3').textContent=`@ ${hh}:${mm} · ${prof.lbl}`;
+  document.getElementById('ss3').className='ssub '+lbl.c;
+  document.getElementById('sv4').textContent=prof.best;
+  document.getElementById('ss4').textContent=prof.bestNote;
+  document.getElementById('ss4').className='ssub sdn';
+
+  // prediction stat
+  if(predYears){
+    const pm=PRED[predYears].mult;
+    document.getElementById('sv5').textContent=`~${Math.round(total*pm)}`;
+    document.getElementById('ss5').textContent=`+${predYears}yr (×${pm.toFixed(2)})`;
+    document.getElementById('ss5').className='ssub spur';
+  }
+
+  // venue table
+  document.getElementById('vtNote').textContent=`@ ${hh}:${mm}`;
+  const tbody=document.getElementById('vtb');
+  tbody.innerHTML='';
+  const sorted=VENUES.map((v,i)=>({v,count:counts[i]})).sort((a,b)=>b.count-a.count);
+  sorted.forEach(({v,count})=>{
+    const pct=count?Math.round((count/v.cap)*100):0;
+    const p=pillCfg(count,v.cap);
+    const bc=barCls(count,v.cap);
+    const cl=v.c>24?v.c-24:v.c;
+    const oh=`${String(Math.floor(v.o)).padStart(2,'0')}:${v.o%1?'30':'00'}`;
+    const ch=`${String(Math.floor(cl)).padStart(2,'0')}:${cl%1?'30':'00'}`;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td><div class="vn">${v.n}</div><div class="vsrc">${v.src.split('·')[0].trim()}</div></td>
+      <td><div class="vtype">${v.type}</div></td>
+      <td><div class="vhrs">${oh}–${ch}</div></td>
+      <td>${count?`<span class="est">~${count}</span>`:`<span class="estcl">—</span>`}</td>
+      <td><div class="bw"><div class="bbg"><div class="bfill ${bc}" style="width:${Math.min(100,pct)}%"></div></div></div></td>
+      <td><span class="pill ${p.cls}">${predYears?'~'+Math.round(count*PRED[predYears].mult):p.t}</span></td>`;
+    if(predYears) tr.querySelector('.pill').className='pill ppr';
+    tbody.appendChild(tr);
+  });
+
+  // trend canvas
+  drawTrend(hour);
+
+  // insights
+  renderInsights(hour, counts, total, openN, prof, day);
+}
+
+function drawTrend(selHour){
+  const c2=document.getElementById('trC');
+  const r=c2.getBoundingClientRect();
+  c2.width=r.width*2;c2.height=r.height*2;
+  const ctx=c2.getContext('2d');ctx.scale(2,2);
+  const W=r.width,H=r.height;
+  const day=resolvedDay();
+  const data=curve48(day);
+  const maxV=Math.max(...data,1);
+  const pad={t:4,b:14,l:26,r:6};
+  const cW=W-pad.l-pad.r,cH=H-pad.t-pad.b;
+  const sX=cW/(data.length-1);
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='rgba(255,255,255,.012)';
+  ctx.fillRect(pad.l,pad.t,(8/48)*cW,cH);
+  ctx.fillRect(pad.l+(20/48)*cW,pad.t,(28/48)*cW,cH);
+  ctx.strokeStyle='rgba(255,255,255,.04)';ctx.lineWidth=1;
+  [.25,.5,.75].forEach(p=>{ctx.beginPath();ctx.moveTo(pad.l,pad.t+cH*p);ctx.lineTo(W-pad.r,pad.t+cH*p);ctx.stroke();});
+  const g=ctx.createLinearGradient(0,pad.t,0,pad.t+cH);
+  g.addColorStop(0,'rgba(201,168,76,.28)');g.addColorStop(1,'rgba(201,168,76,0)');
+  ctx.beginPath();
+  data.forEach((v,i)=>{const x=pad.l+i*sX,y=pad.t+cH-(v/maxV)*cH;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
+  ctx.lineTo(pad.l+(data.length-1)*sX,pad.t+cH);ctx.lineTo(pad.l,pad.t+cH);ctx.closePath();
+  ctx.fillStyle=g;ctx.fill();
+  ctx.beginPath();ctx.strokeStyle='#C9A84C';ctx.lineWidth=1.6;
+  data.forEach((v,i)=>{const x=pad.l+i*sX,y=pad.t+cH-(v/maxV)*cH;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
+  ctx.stroke();
+  if(selHour!==null){
+    const si=(selHour/24)*48;
+    const sx=pad.l+si*sX;
+    const sv=totalAt(selHour,day);
+    const sy=pad.t+cH-(sv/maxV)*cH;
+    ctx.beginPath();ctx.strokeStyle='rgba(201,168,76,.4)';ctx.lineWidth=1;ctx.setLineDash([3,3]);
+    ctx.moveTo(sx,pad.t);ctx.lineTo(sx,pad.t+cH);ctx.stroke();ctx.setLineDash([]);
+    ctx.beginPath();ctx.arc(sx,sy,4,0,Math.PI*2);ctx.fillStyle='#C9A84C';ctx.fill();
+  }
+  ctx.fillStyle='rgba(122,109,80,.55)';ctx.font='8px Courier New';ctx.textAlign='right';
+  [0,.5,1].forEach(p=>ctx.fillText(Math.round(maxV*(1-p)),pad.l-3,pad.t+cH*p+3));
+  ctx.textAlign='center';
+  [0,6,12,18,23].forEach(h=>{const x=pad.l+(h/24)*cW;ctx.fillText(`${String(h).padStart(2,'0')}h`,x,H-1);});
+}
+
+function renderInsights(hour, counts, total, openN, prof, day){
+  document.getElementById('iHr').textContent=`@ ${String(Math.floor(hour)).padStart(2,'0')}:${String(Math.floor((hour%1)*60)).padStart(2,'0')}`;
+  const list=document.getElementById('ilist');
+  list.innerHTML='';
+  const ins=[];
+  const h=Math.floor(hour);
+
+  // Simultaneous peak venues
+  const peakV=VENUES.filter((v,i)=>counts[i]>0&&counts[i]>v.cap*.78);
+  if(peakV.length>=3){
+    ins.push({cls:'warn',t:`${peakV.length} Venues Near Capacity`,b:`${peakV.slice(0,4).map(v=>v.n.split(' ')[0]).join(', ')} all near peak simultaneously. Narrow alleys between them will feel very congested.`});
+  }
+
+  // Quiet window
+  if(total>0&&total<150&&openN>=8){
+    ins.push({cls:'good',t:'Comfortable Visit Window',b:`~${total} est. visitors across ${openN} open venues. Light crowds — good for photography and exploring alleys without queuing.`});
+  }
+
+  // Mural alley
+  const mi=VENUES.findIndex(v=>v.n.includes('Mural'));
+  if(counts[mi]>VENUES[mi].cap*.65){
+    ins.push({cls:'warn',t:'Mural Alley (Trok 22) Busy',b:`~${counts[mi]} est. people. This 3m-wide alley gets uncomfortable above 60% capacity. Visit before 10am or after 6pm for a calmer experience.`});
+  }
+
+  // Foojohn
+  const fi=VENUES.findIndex(v=>v.n.includes('Foojohn'));
+  if(counts[fi]>0){
+    ins.push({cls:'',t:'Foojohn Jazz Club Open',b:`Live jazz 8pm–midnight. Booking recommended (call 0986649826 between 5–8pm). One of the few late-night options in Talad Noi.`});
+  }
+
+  // Sunset Hong Sieng Kong
+  if(h>=16&&h<=19){
+    const hi=VENUES.findIndex(v=>v.n.includes('Hong Sieng'));
+    ins.push({cls:'warn',t:'Hong Sieng Kong Sunset Rush',b:`Sunset (${h}:00–${h+1}:00) is this venue's absolute peak. Reviewers say 'go just before lunch for quiet time'. Capacity: ~${counts[hi]} est. now.`});
+  }
+
+  // Museum closing soon
+  const musi=VENUES.findIndex(v=>v.n.includes('Museum'));
+  if(h===15||h===16){
+    ins.push({cls:'warn',t:'Talat Noi Museum Closing Soon',b:`Museum closes at 16:30 (Tue–Fri) or 18:00 (Sat–Sun). Entry free. 3 floors of community history. Don't miss the 3rd floor animated film.`});
+  }
+
+  // Heat advisory (afternoon)
+  if(h>=12&&h<=15){
+    ins.push({cls:'warn',t:'Midday Heat Advisory',b:`Visitors consistently report the 12–3pm window as the most uncomfortable due to Bangkok's heat. River City Mall (10am–8pm) is an A/C escape nearby.`});
+  }
+
+  // Monday closures
+  if(new Date().getDay()===1||curDay==='weekday'){
+    ins.push({cls:'warn',t:'Mon Closures: Hong Sieng Kong & So Heng Tai',b:`Both Hong Sieng Kong and So Heng Tai Mansion are closed on Mondays. Plan accordingly — Ped Toon Jao Ta is also weekends only.`});
+  }
+
+  // Busiest venue
+  const topV=VENUES.map((v,i)=>({v,count:counts[i],r:counts[i]/v.cap})).filter(x=>x.count>0).sort((a,b)=>b.r-a.r)[0];
+  if(topV){
+    ins.push({cls:'',t:`Busiest: ${topV.v.n}`,b:`~${topV.count} est. visitors (${Math.round(topV.r*100)}% of peak capacity). ${topV.v.note}`});
+  }
+
+  // Quietest open
+  const qV=VENUES.map((v,i)=>({v,count:counts[i],r:counts[i]/v.cap})).filter(x=>x.count>0&&x.r<.35).sort((a,b)=>a.r-b.r)[0];
+  if(qV){
+    ins.push({cls:'good',t:`Quietest Open: ${qV.v.n}`,b:`~${qV.count} est. visitors (${Math.round(qV.r*100)}% of peak). ${qV.v.note}`});
+  }
+
+  // Prediction insight
+  if(predYears){
+    const pd=PRED[predYears];
+    ins.push({cls:'pred',t:`${pd.title} — Area Outlook`,b:`Est. total × ${pd.mult.toFixed(2)} = ~${Math.round(total*pd.mult)} visitors. ${pd.note}`});
+  }
+
+  if(!ins.length){
+    ins.push({cls:'',t:'Outside Active Hours',b:'Most venues closed. The area is residential and car-parts workshops at this time. Some shrines are still accessible.'});
+  }
+
+  ins.slice(0,5).forEach(({cls,t,b})=>{
+    const d=document.createElement('div');
+    d.className=`iitem ${cls}`;
+    d.innerHTML=`<div class="it">${t}</div><div class="ib">${b}</div>`;
+    list.appendChild(d);
+  });
+}
+
+// ── PREDICTION BUTTONS ───────────────────────────────────
+function setPred(yr){
+  if(predYears===yr){
+    predYears=null;
+    ['bp10','bp50','bp100','bp150'].forEach(id=>document.getElementById(id).classList.remove('on'));
+    document.getElementById('pbanner').classList.remove('show');
+    document.getElementById('sv5').textContent='—';
+    document.getElementById('ss5').textContent='select +yr above';
+    document.getElementById('ss5').className='ssub spur';
+    document.getElementById('mpill').className= curHour===null?'mpill live':'mpill scrub';
+    if(curHour!==null) renderAll(curHour);
+    return;
+  }
+  predYears=yr;
+  ['bp10','bp50','bp100','bp150'].forEach(id=>document.getElementById(id).classList.remove('on'));
+  document.getElementById('bp'+yr).classList.add('on');
+  document.getElementById('mpill').textContent=`◈ +${yr}YR PRED`;
+  document.getElementById('mpill').className='mpill pred';
+
+  // prediction banner
+  const pd=PRED[yr];
+  document.getElementById('pbtitle').textContent=pd.title;
+  document.getElementById('pbnote').textContent=pd.note;
+  const chips=document.getElementById('pbchips');
+  chips.innerHTML='';
+  pd.facts.forEach(f=>{
+    const d=document.createElement('div');d.className='pchip';
+    d.innerHTML=`<div class="pcfact">${f}</div>`;
+    chips.appendChild(d);
+  });
+  // add multiplier chip
+  const mc=document.createElement('div');mc.className='pchip';
+  const base=curHour!==null?totalAt(curHour,resolvedDay()):0;
+  mc.innerHTML=`<div class="pcyr">×${pd.mult.toFixed(2)} visitors</div><div class="pcval">${base?'~'+Math.round(base*pd.mult):'select time'}</div><div class="pcmult">vs today</div>`;
+  chips.prepend(mc);
+  document.getElementById('pbanner').classList.add('show');
+  if(curHour!==null) renderAll(curHour);
+}
+
+// ── NOW / LIVE MODE ──────────────────────────────────────
+function goNow(){
+  curHour=null;
+  predYears=null;
+  ['bp10','bp50','bp100','bp150'].forEach(id=>document.getElementById(id).classList.remove('on'));
+  document.getElementById('pbanner').classList.remove('show');
+  document.getElementById('btnNow').classList.add('active');
+  document.getElementById('mpill').textContent='⊙ LIVE — REAL TIME';
+  document.getElementById('mpill').className='mpill live';
+  document.getElementById('ldot').style.background='var(--grn)';
+  document.getElementById('llabel').textContent='Simulating Live';
+  document.getElementById('tlread').textContent='NOW';
+  document.getElementById('sv5').textContent='—';
+  document.getElementById('ss5').textContent='select +yr above';
+  startLive();
+}
+
+function startLive(){
+  if(liveTimer) clearInterval(liveTimer);
+  const tick=()=>{
+    const h=nowHour();
+    thumbFrac(h/24);
+    document.getElementById('tlread').textContent=`${String(Math.floor(h)).padStart(2,'0')}:${String(Math.floor((h%1)*60)).padStart(2,'0')} NOW`;
+    renderAll(h);
+    drawTL();
+  };
+  tick();
+  liveTimer=setInterval(tick,30000); // refresh every 30s
+}
+
+function onDayChange(){
+  curDay=document.getElementById('daySel').value;
+  drawTL();
+  if(curHour!==null) renderAll(curHour);
+  else renderAll(nowHour());
+}
+
+function resetAll(){
+  curHour=null;predYears=null;
+  document.getElementById('daySel').value='auto';
+  curDay='auto';
+  ['bp10','bp50','bp100','bp150'].forEach(id=>document.getElementById(id).classList.remove('on'));
+  document.getElementById('pbanner').classList.remove('show');
+  goNow();
+}
+
+// ── INIT ─────────────────────────────────────────────────
+window.addEventListener('load',()=>{
+  drawTL();
+  goNow(); // default = NOW on load
+  wmInit();
+});
+window.addEventListener('resize',()=>{drawTL();drawTrend(curHour);wmResize();});
+
+// ═══════════════════════════════════════════════════════
+// WAVE MAP — namespaced to avoid conflicts with PPL.html
+// ═══════════════════════════════════════════════════════
+const WM_BOUNDS = {
+  latMin:13.7305, latMax:13.7385,
+  lngMin:100.5105, lngMax:100.5195,
+};
+
+const WM_VENUES = [
+  {n:"Mother Roaster",       t:"Coffee",            lat:13.7337, lng:100.5138, o:10, c:17, cap:40,  pop:1.2,  ph:[10,11,14,15]},
+  {n:"Timo & Tintin",        t:"Cafe/Gallery",       lat:13.7340, lng:100.5141, o:9,  c:17, cap:60,  pop:1.0,  ph:[10,11,14,15,16]},
+  {n:"La Cabra Coffee",      t:"Scandinavian Cafe",  lat:13.7333, lng:100.5133, o:8,  c:18, cap:45,  pop:1.05, ph:[9,10,15,16]},
+  {n:"Blacksmith Cafe",      t:"Local Cafe",         lat:13.7342, lng:100.5148, o:8,  c:17, cap:12,  pop:0.9,  ph:[9,10,14,15]},
+  {n:"32Bar Chocolate",      t:"Chocolate Bar",      lat:13.7335, lng:100.5145, o:10, c:18, cap:25,  pop:1.1,  ph:[13,14,15]},
+  {n:"Citizen Tea Canteen",  t:"Tea House",          lat:13.7338, lng:100.5152, o:10, c:18, cap:30,  pop:0.9,  ph:[11,14,15]},
+  {n:"Vanish House",         t:"Cafe/Souvenir",      lat:13.7330, lng:100.5155, o:10, c:18, cap:25,  pop:0.85, ph:[13,14,15]},
+  {n:"PhotoHostel Cafe",     t:"Hostel Cafe",        lat:13.7344, lng:100.5135, o:9,  c:18, cap:30,  pop:0.8,  ph:[10,11,14,15]},
+  {n:"Ped Toon Jao Ta",      t:"Restaurant",         lat:13.7328, lng:100.5140, o:9.5,c:21, cap:50,  pop:0.9,  ph:[12,13,18,19]},
+  {n:"Henryfry Chicken",     t:"Street Food",        lat:13.7345, lng:100.5143, o:11, c:21, cap:35,  pop:1.1,  ph:[12,13,18,19,20]},
+  {n:"Duck Noodle Stall",    t:"Street Stall",       lat:13.7325, lng:100.5130, o:9,  c:16, cap:18,  pop:1.0,  ph:[11,12,13]},
+  {n:"Pu Curry Puffs",       t:"Street Vendor",      lat:13.7349, lng:100.5137, o:8,  c:17, cap:15,  pop:1.1,  ph:[10,11,12]},
+  {n:"Hiab Tiang Pastry",    t:"Chinese Pastry",     lat:13.7321, lng:100.5142, o:8,  c:17, cap:20,  pop:0.8,  ph:[9,10,11]},
+  {n:"Very Nice Bar",        t:"Izakaya/Bar",         lat:13.7336, lng:100.5160, o:17, c:24, cap:40,  pop:0.9,  ph:[19,20,21,22]},
+  {n:"Hong Sieng Kong",      t:"Riverside Cafe",     lat:13.7318, lng:100.5125, o:10, c:22, cap:120, pop:1.15, ph:[16,17,18,19]},
+  {n:"Foojohn Jazz Club",    t:"Jazz Club",           lat:13.7341, lng:100.5163, o:19, c:24, cap:80,  pop:1.0,  ph:[20,21,22]},
+  {n:"So Heng Tai Mansion",  t:"Heritage Museum",    lat:13.7323, lng:100.5135, o:9,  c:18, cap:60,  pop:0.95, ph:[10,11,14,15]},
+  {n:"Talat Noi Museum",     t:"Community Museum",   lat:13.7332, lng:100.5128, o:8.5,c:16.5,cap:30, pop:0.7,  ph:[10,11,13,14]},
+  {n:"Rong Kueak Shrine",    t:"Chinese Temple",     lat:13.7315, lng:100.5120, o:6,  c:20, cap:80,  pop:1.1,  ph:[8,9,10,15,16]},
+  {n:"Chow Sue Kong Shrine", t:"Hokkien Shrine",     lat:13.7320, lng:100.5122, o:6,  c:20, cap:60,  pop:0.9,  ph:[8,9,14,15]},
+  {n:"Holy Rosary Church",   t:"Church (1786)",       lat:13.7311, lng:100.5115, o:6,  c:19, cap:80,  pop:0.7,  ph:[9,10,16,17]},
+  {n:"Heng Seng Cushions",   t:"Craft Workshop",     lat:13.7348, lng:100.5150, o:9,  c:17, cap:15,  pop:0.7,  ph:[10,11,14,15]},
+  {n:"Mural Alley (Trok 22)",t:"Street Art",         lat:13.7355, lng:100.5140, o:7,  c:20, cap:150, pop:1.25, ph:[9,10,11,15,16]},
+  {n:"Antique Turtle Car",   t:"Photo Spot",         lat:13.7327, lng:100.5148, o:7,  c:19, cap:35,  pop:1.2,  ph:[9,10,14,15,16]},
+  {n:"Warehouse 30",         t:"Creative Hub",        lat:13.7360, lng:100.5130, o:7,  c:25, cap:200, pop:0.95, ph:[14,15,16,17,18,19,20]},
+];
+
+const WM_ROADS = [
+  {pts:[[13.7305,100.5168],[13.7320,100.5160],[13.7335,100.5165],[13.7350,100.5168],[13.7380,100.5172]], w:3, col:'rgba(255,255,255,0.12)'},
+  {pts:[[13.7355,100.5168],[13.7355,100.5140],[13.7355,100.5128]], w:1.5, col:'rgba(255,255,255,0.07)'},
+  {pts:[[13.7335,100.5110],[13.7335,100.5130],[13.7335,100.5150],[13.7335,100.5160]], w:1.5, col:'rgba(255,255,255,0.07)'},
+  {pts:[[13.7305,100.5108],[13.7315,100.5110],[13.7335,100.5113],[13.7360,100.5115]], w:2, col:'rgba(255,255,255,0.09)'},
+  {pts:[[13.7310,100.5115],[13.7330,100.5120],[13.7350,100.5123]], w:1, col:'rgba(255,255,255,0.05)'},
+  {pts:[[13.7305,100.5107],[13.7325,100.5107],[13.7345,100.5107],[13.7380,100.5108]], w:5, col:'rgba(30,80,140,0.35)'},
+];
+
+const WM_PROFILES = {
+  weekday:  {mult:0.55, shape:[0,0,0,0,0,0, 0.07,0.2,0.42,0.62,0.72,0.66, 0.5,0.58,0.68,0.80,0.74,0.6, 0.42,0.28,0.18,0.12,0.06,0.02]},
+  weekend:  {mult:1.0,  shape:[0,0,0,0,0,0, 0.04,0.14,0.44,0.76,0.90,0.84, 0.62,0.74,0.90,1.0,1.0,0.88, 0.66,0.44,0.28,0.16,0.06,0.01]},
+  festival: {mult:1.55, shape:[0,0,0,0,0,0, 0.08,0.28,0.62,0.88,0.96,0.92, 0.78,0.86,0.96,1.0,1.0,0.96, 0.84,0.64,0.44,0.24,0.10,0.02]},
+};
+
+const WM_PRED_MULT = {10:1.34, 50:2.43, 100:4.38, 150:6.2};
+
+let wmShowLabels = true;
+let wmShowRoads  = true;
+let wmPhase = 0;
+let wmAnimFrame = null;
+let wmLastTs = 0;
+
+function wmVenueCount(v, hour, dayType){
+  const p = WM_PROFILES[dayType];
+  const h = Math.floor(hour)%24;
+  const frac = hour - Math.floor(hour);
+  const closeH = v.c>24?v.c-24:v.c;
+  const isOpen = v.c>24?(hour>=v.o||hour<closeH):(hour>=v.o&&hour<v.c);
+  if(!isOpen) return 0;
+  const i0=p.shape[h]||0, i1=p.shape[(h+1)%24]||0;
+  const intensity = i0+(i1-i0)*frac;
+  const boost = v.ph.includes(h)?1.38:0.82;
+  return Math.max(0,Math.min(v.cap,Math.round(v.cap*p.mult*intensity*boost*v.pop)));
+}
+
+function wmLatLngToXY(lat, lng, W, H){
+  const x = (lng-WM_BOUNDS.lngMin)/(WM_BOUNDS.lngMax-WM_BOUNDS.lngMin)*W;
+  const y = (1-(lat-WM_BOUNDS.latMin)/(WM_BOUNDS.latMax-WM_BOUNDS.latMin))*H;
+  return [x,y];
+}
+
+function wmDrawMap(hour, phase){
+  const canvas = document.getElementById('wmMap');
+  const ctx2 = canvas.getContext('2d');
+  const W=canvas.width, H=canvas.height;
+  const day = resolvedDay();
+  const counts = WM_VENUES.map(v=>wmVenueCount(v,hour,day));
+  const total = counts.reduce((a,b)=>a+b,0);
+  const pm = predYears ? WM_PRED_MULT[predYears] : 1;
+
+  ctx2.fillStyle='#000';
+  ctx2.fillRect(0,0,W,H);
+
+  if(wmShowRoads){
+    WM_ROADS.forEach(road=>{
+      ctx2.beginPath();
+      road.pts.forEach(([lat,lng],i)=>{
+        const [x,y]=wmLatLngToXY(lat,lng,W,H);
+        i===0?ctx2.moveTo(x,y):ctx2.lineTo(x,y);
+      });
+      ctx2.strokeStyle=road.col;ctx2.lineWidth=road.w;ctx2.stroke();
+    });
+    ctx2.fillStyle='rgba(30,80,140,0.4)';ctx2.font='bold 9px Courier New';ctx2.textAlign='center';
+    const [rx,ry]=wmLatLngToXY(13.734,100.5108,W,H);
+    ctx2.fillText('CHAO PHRAYA',rx,ry+14);
+  }
+
+  WM_VENUES.forEach((v,i)=>{
+    const count=Math.round(counts[i]*pm);
+    const rawCount=counts[i];
+    const [cx,cy]=wmLatLngToXY(v.lat,v.lng,W,H);
+    const isOpen=rawCount>0;
+    const ratio=isOpen?rawCount/v.cap:0;
+    const maxRadius=Math.min(W,H)*0.22;
+    const baseSpacing=isOpen?Math.max(8,40-ratio*30):30;
+    const numRings=isOpen?Math.floor(maxRadius/baseSpacing):2;
+    const baseOpacity=isOpen?Math.min(0.9,0.15+ratio*0.75):0.06;
+    const ringWidth=isOpen?Math.max(0.4,ratio*1.8):0.4;
+    let r=255,g=255,b=255;
+    if(predYears){r=220;g=180;b=255;}
+
+    for(let ri=0;ri<numRings+1;ri++){
+      const phaseOffset=(phase%baseSpacing)/baseSpacing;
+      const radius=(ri+phaseOffset)*baseSpacing;
+      if(radius>maxRadius+baseSpacing) continue;
+      const edgeFade=1-(radius/maxRadius);
+      const alpha=isOpen?baseOpacity*edgeFade*(1-ri/(numRings+2)):0.04*edgeFade;
+      ctx2.beginPath();ctx2.arc(cx,cy,radius,0,Math.PI*2);
+      ctx2.strokeStyle=`rgba(${r},${g},${b},${Math.max(0,alpha)})`;
+      ctx2.lineWidth=ringWidth*edgeFade;ctx2.stroke();
+    }
+
+    if(isOpen){
+      WM_VENUES.forEach((v2,j)=>{
+        if(j<=i||counts[j]===0) return;
+        const [cx2,cy2]=wmLatLngToXY(v2.lat,v2.lng,W,H);
+        const dist=Math.sqrt((cx2-cx)**2+(cy2-cy)**2);
+        if(dist>maxRadius*1.5) return;
+        const mx=(cx+cx2)/2,my=(cy+cy2)/2;
+        const iAlpha=Math.min(0.35,(ratio+counts[j]/v2.cap)*0.15);
+        const irSize=3+ratio*4;
+        const grad2=ctx2.createRadialGradient(mx,my,0,mx,my,irSize*3);
+        grad2.addColorStop(0,`rgba(${r},${g},${b},${iAlpha})`);
+        grad2.addColorStop(1,`rgba(${r},${g},${b},0)`);
+        ctx2.beginPath();ctx2.arc(mx,my,irSize*3,0,Math.PI*2);
+        ctx2.fillStyle=grad2;ctx2.fill();
+      });
+    }
+
+    if(isOpen){
+      const glow=ctx2.createRadialGradient(cx,cy,0,cx,cy,14);
+      glow.addColorStop(0,predYears?`rgba(180,130,255,${0.3+ratio*0.4})`:`rgba(201,168,76,${0.3+ratio*0.4})`);
+      glow.addColorStop(1,'rgba(0,0,0,0)');
+      ctx2.beginPath();ctx2.arc(cx,cy,14,0,Math.PI*2);ctx2.fillStyle=glow;ctx2.fill();
+      ctx2.beginPath();ctx2.arc(cx,cy,3.5,0,Math.PI*2);
+      ctx2.fillStyle=predYears?'#c8a0ff':'#c9a84c';ctx2.fill();
+    } else {
+      ctx2.beginPath();ctx2.arc(cx,cy,2.5,0,Math.PI*2);
+      ctx2.strokeStyle='rgba(255,255,255,0.2)';ctx2.lineWidth=1;ctx2.stroke();
+    }
+
+    if(wmShowLabels&&isOpen){
+      ctx2.font=`${Math.max(8,7+ratio*4)}px Courier New`;ctx2.textAlign='center';
+      const label=v.n.split('(')[0].trim();
+      const tw=ctx2.measureText(label).width;
+      ctx2.fillStyle='rgba(0,0,0,0.7)';ctx2.fillRect(cx-tw/2-3,cy+6,tw+6,12);
+      ctx2.fillStyle=`rgba(255,255,255,${0.4+ratio*0.6})`;ctx2.fillText(label,cx,cy+16);
+      ctx2.font='7px Courier New';
+      ctx2.fillStyle=predYears?'rgba(180,130,255,0.8)':'rgba(201,168,76,0.9)';
+      ctx2.fillText(predYears?`~${count}`:`~${rawCount}`,cx,cy+25);
+    }
+  });
+
+  // compass
+  const compX=W-26, compY=H-30;
+  ctx2.font='9px Courier New';ctx2.textAlign='center';ctx2.fillStyle='rgba(255,255,255,0.3)';
+  ctx2.fillText('N',compX,compY-10);
+  ctx2.beginPath();ctx2.moveTo(compX,compY-4);ctx2.lineTo(compX,compY+8);
+  ctx2.strokeStyle='rgba(255,255,255,0.25)';ctx2.lineWidth=1;ctx2.stroke();
+  ctx2.beginPath();ctx2.moveTo(compX-8,compY);ctx2.lineTo(compX+8,compY);ctx2.stroke();
+
+  // update info panel
+  const openN=counts.filter(c=>c>0).length;
+  const hotI=counts.indexOf(Math.max(...counts));
+  const crowdTxt=total<80?'VERY QUIET':total<200?'MODERATE':total<380?'BUSY':'VERY BUSY';
+  const crowdCls=total<80?'grn':total<200?'gold':total<380?'org':'red';
+  document.getElementById('wmTotal').textContent=`~${Math.round(total*pm)}`;
+  document.getElementById('wmOpen').textContent=`${openN} / 25`;
+  document.getElementById('wmCrowd').textContent=crowdTxt;
+  document.getElementById('wmCrowd').className=`ip-val ${crowdCls}`;
+  document.getElementById('wmHot').textContent=counts[hotI]>0?WM_VENUES[hotI].n.split(' ')[0]:'—';
+
+  // sync time label
+  const hh=String(Math.floor(hour%24)).padStart(2,'0');
+  const mm=String(Math.floor((hour%1)*60)).padStart(2,'0');
+  document.getElementById('wmTimelbl').textContent=`@ ${hh}:${mm}`;
+}
+
+function wmAnimate(ts){
+  if(ts-wmLastTs>50){
+    const hour = curHour!==null?curHour:nowHour();
+    wmPhase+=0.6;
+    wmDrawMap(hour,wmPhase);
+    wmLastTs=ts;
+  }
+  wmAnimFrame=requestAnimationFrame(wmAnimate);
+}
+
+function wmResize(){
+  const wrap=document.getElementById('wmMapwrap');
+  const canvas=document.getElementById('wmMap');
+  canvas.width=wrap.clientWidth;
+  canvas.height=wrap.clientHeight;
+}
+
+function wmToggleLabels(){wmShowLabels=!wmShowLabels;}
+function wmToggleRoads(){wmShowRoads=!wmShowRoads;}
+
+// Venue hover on wavemap
+(function(){
+  const canvas=document.getElementById('wmMap');
+  canvas.addEventListener('mousemove',e=>{
+    const rect=canvas.getBoundingClientRect();
+    const mx=(e.clientX-rect.left)*(canvas.width/rect.width);
+    const my=(e.clientY-rect.top)*(canvas.height/rect.height);
+    const W=canvas.width,H=canvas.height;
+    const hour=curHour!==null?curHour:nowHour();
+    const day=resolvedDay();
+    let closest=null,minD=9999;
+    WM_VENUES.forEach((v,i)=>{
+      const [cx,cy]=wmLatLngToXY(v.lat,v.lng,W,H);
+      const d=Math.sqrt((mx-cx)**2+(my-cy)**2);
+      if(d<minD){minD=d;closest={v,i};}
+    });
+    const vt=document.getElementById('wmVtip');
+    if(closest&&minD<28){
+      const count=wmVenueCount(closest.v,hour,day);
+      const pct=count?Math.round((count/closest.v.cap)*100):0;
+      document.getElementById('wmVtName').textContent=closest.v.n;
+      document.getElementById('wmVtType').textContent=closest.v.t;
+      document.getElementById('wmVtCount').textContent=count?`~${count} people`:'CLOSED';
+      document.getElementById('wmVtPct').textContent=count?`${pct}% of peak capacity`:`Opens ${closest.v.o}:00`;
+      const rx=(e.clientX-rect.left)/rect.width;
+      vt.style.left=(rx>0.7?'auto':e.clientX-rect.left+14+'px');
+      vt.style.right=(rx>0.7?rect.width-(e.clientX-rect.left)-14+'px':'auto');
+      vt.style.top=Math.min(e.clientY-rect.top+14,rect.height-100)+'px';
+      vt.classList.add('show');
+      canvas.style.cursor='pointer';
+    } else {
+      vt.classList.remove('show');
+      canvas.style.cursor='crosshair';
+    }
+  });
+  canvas.addEventListener('mouseleave',()=>document.getElementById('wmVtip').classList.remove('show'));
+})();
+
+function wmInit(){
+  wmResize();
+  requestAnimationFrame(wmAnimate);
+}
+// ─────────────────────────────────────────────────────────
+// ZONE MONITOR — all vars/functions prefixed ZM_ to avoid
+// conflicts with PPL_combined's existing JS
+// ─────────────────────────────────────────────────────────
+const ZM_ZONES = [
+  {
+    id:'riverside', name:'Riverside Pier', shortName:'Riverside', area:2800,
+    venues:[
+      {n:'Hong Sieng Kong',   o:10,c:22,cap:120,pop:1.15,ph:[16,17,18,19]},
+      {n:'Holy Rosary Church',o:6, c:19,cap:80, pop:0.7, ph:[9,10,16,17]},
+      {n:'Rong Kueak Shrine', o:6, c:20,cap:80, pop:1.1, ph:[8,9,10,15,16]},
+    ],
+    note:'Chao Phraya waterfront. Sunset surge 16:00–19:00.'
+  },
+  {
+    id:'shrine', name:'Shrine Cluster', shortName:'Shrines', area:1600,
+    venues:[
+      {n:'Chow Sue Kong Shrine',o:6,  c:20,  cap:60, pop:0.9, ph:[8,9,14,15]},
+      {n:'So Heng Tai Mansion', o:9,  c:18,  cap:60, pop:0.95,ph:[10,11,14,15]},
+      {n:'Talat Noi Museum',    o:8.5,c:16.5,cap:30, pop:0.7, ph:[10,11,13,14]},
+    ],
+    note:'Heritage core. Museum closes 16:30.'
+  },
+  {
+    id:'mural', name:'Mural Alley North', shortName:'Mural Alley', area:1200,
+    venues:[
+      {n:'Mural Alley (Trok 22)',o:7,c:20,cap:150,pop:1.25,ph:[9,10,11,15,16]},
+      {n:'Warehouse 30',         o:7,c:25,cap:200,pop:0.95,ph:[14,15,16,17,18,19,20]},
+      {n:'Antique Turtle Car',   o:7,c:19,cap:35, pop:1.2, ph:[9,10,14,15,16]},
+    ],
+    note:'Outdoor art zone. Heaviest weekend congestion.'
+  },
+  {
+    id:'cafe_core', name:'Café Core', shortName:'Café Core', area:1400,
+    venues:[
+      {n:'Mother Roaster',  o:10,c:17,cap:40,pop:1.2, ph:[10,11,14,15]},
+      {n:'Timo & Tintin',   o:9, c:17,cap:60,pop:1.0, ph:[10,11,14,15,16]},
+      {n:'La Cabra Coffee', o:8, c:18,cap:45,pop:1.05,ph:[9,10,15,16]},
+      {n:'PhotoHostel Cafe',o:9, c:18,cap:30,pop:0.8, ph:[10,11,14,15]},
+    ],
+    note:'Instagram hotspot cluster. Densest daytime foot traffic.'
+  },
+  {
+    id:'street_food', name:'Street Food Strip', shortName:'Food Strip', area:900,
+    venues:[
+      {n:'Henryfry Chicken', o:11,c:21,cap:35,pop:1.1, ph:[12,13,18,19,20]},
+      {n:'Duck Noodle Stall',o:9, c:16,cap:18,pop:1.0, ph:[11,12,13]},
+      {n:'Pu Curry Puffs',   o:8, c:17,cap:15,pop:1.1, ph:[10,11,12]},
+      {n:'Hiab Tiang Pastry',o:8, c:17,cap:20,pop:0.8, ph:[9,10,11]},
+    ],
+    note:'Morning pastry rush 08:00–12:00. Queue-heavy.'
+  },
+  {
+    id:'specialty', name:'Specialty Shops', shortName:'Specialty', area:1000,
+    venues:[
+      {n:'32Bar Chocolate',    o:10,c:18,cap:25,pop:1.1, ph:[13,14,15]},
+      {n:'Citizen Tea Canteen',o:10,c:18,cap:30,pop:0.9, ph:[11,14,15]},
+      {n:'Vanish House',       o:10,c:18,cap:25,pop:0.85,ph:[13,14,15]},
+      {n:'Heng Seng Cushions', o:9, c:17,cap:15,pop:0.7, ph:[10,11,14,15]},
+    ],
+    note:'Craft & souvenir corridor. Afternoon peak 13:00–15:00.'
+  },
+  {
+    id:'dining', name:'Dining & Heritage', shortName:'Dining', area:1500,
+    venues:[
+      {n:'Ped Toon Jao Ta', o:9.5,c:21,cap:50,pop:0.9,ph:[12,13,18,19]},
+      {n:'Blacksmith Cafe',  o:8,  c:17,cap:12,pop:0.9,ph:[9,10,14,15]},
+    ],
+    note:'Heritage dining. Ped Toon Fri–Mon only.'
+  },
+  {
+    id:'nightlife', name:'Nightlife Strip', shortName:'Nightlife', area:1800,
+    venues:[
+      {n:'Foojohn Jazz Club',o:19,c:24,cap:80,pop:1.0,ph:[20,21,22]},
+      {n:'Very Nice Bar',     o:17,c:24,cap:40,pop:0.9,ph:[19,20,21,22]},
+    ],
+    note:'Evening only. Jazz 20:00–midnight Wed–Sun.'
+  },
+];
+
+const ZM_PROFILES = {
+  weekday:  {mult:0.55,shape:[0,0,0,0,0,0,0.07,0.2,0.42,0.62,0.72,0.66,0.5,0.58,0.68,0.80,0.74,0.6,0.42,0.28,0.18,0.12,0.06,0.02]},
+  weekend:  {mult:1.0, shape:[0,0,0,0,0,0,0.04,0.14,0.44,0.76,0.90,0.84,0.62,0.74,0.90,1.0,1.0,0.88,0.66,0.44,0.28,0.16,0.06,0.01]},
+  festival: {mult:1.55,shape:[0,0,0,0,0,0,0.08,0.28,0.62,0.88,0.96,0.92,0.78,0.86,0.96,1.0,1.0,0.96,0.84,0.64,0.44,0.24,0.10,0.02]},
+};
+
+let zm_prevTotal = 0;
+let zm_isDrag = false;
+
+function zm_resolvedDay(){
+  // reuse the main dashboard's curDay/resolvedDay
+  if(typeof resolvedDay === 'function') return resolvedDay();
+  const d=new Date().getDay(); return (d===0||d===6)?'weekend':'weekday';
+}
+
+function zm_venueCount(v, hour, dayType){
+  const p=ZM_PROFILES[dayType];
+  const h=Math.floor(hour)%24;
+  const frac=hour-Math.floor(hour);
+  const closeH=v.c>24?v.c-24:v.c;
+  const isOpen=v.c>24?(hour>=v.o||hour<closeH):(hour>=v.o&&hour<v.c);
+  if(!isOpen) return 0;
+  const i0=p.shape[h]||0, i1=p.shape[(h+1)%24]||0;
+  const intensity=i0+(i1-i0)*frac;
+  const boost=v.ph.includes(h)?1.38:0.82;
+  return Math.max(0,Math.min(v.cap,Math.round(v.cap*p.mult*intensity*boost*v.pop)));
+}
+
+function zm_zoneTotal(zone,hour,day){
+  return zone.venues.reduce((s,v)=>s+zm_venueCount(v,hour,day),0);
+}
+function zm_totalAll(hour,day){
+  return ZM_ZONES.reduce((s,z)=>s+zm_zoneTotal(z,hour,day),0);
+}
+function zm_curve48(day){
+  return Array.from({length:48},(_,i)=>zm_totalAll((i/48)*24,day));
+}
+function zm_zoneClass(count,zone){
+  if(!count) return 'zclosed';
+  const r=count/zone.venues.reduce((s,v)=>s+v.cap,0);
+  return r<0.35?'zlow':r<0.65?'zmod':r<0.85?'zhi':'zcrit';
+}
+function zm_zoneLabel(cls){return{zclosed:'CLOSED',zlow:'LOW',zmod:'MOD',zhi:'HIGH',zcrit:'CRIT'}[cls];}
+function zm_barPct(count,zone){
+  const mc=zone.venues.reduce((s,v)=>s+v.cap,0);
+  return mc&&count?Math.min(100,Math.round(count/mc*100)):0;
+}
+function zm_density(count,area){return(count/(area/100)).toFixed(1);}
+function zm_densLabel(d){
+  const v=parseFloat(d);
+  return v<2?{t:'Light',c:'zdn'}:v<5?{t:'Moderate',c:'zneu'}:v<10?{t:'Congested',c:'zup'}:{t:'Critical',c:'zup'};
+}
+function zm_crowdLevel(total){
+  if(!total) return{col:'var(--muted)',label:'Closed',note:'Most venues shut'};
+  if(total<120) return{col:'var(--grn)',label:'Quiet',note:'Low activity period'};
+  if(total<280) return{col:'var(--gold)',label:'Moderate',note:'Off-peak period'};
+  if(total<450) return{col:'var(--org)',label:'Busy',note:'Approaching peak hours'};
+  return{col:'var(--red)',label:'Very Busy',note:'Peak crowd — plan ahead'};
+}
+
+function zm_render(hour){
+  const day=zm_resolvedDay();
+  const hh=String(Math.floor(hour%24)).padStart(2,'0');
+  const mm=String(Math.floor((hour%1)*60)).padStart(2,'0');
+  const zoneCounts=ZM_ZONES.map(z=>zm_zoneTotal(z,hour,day));
+  const total=zoneCounts.reduce((a,b)=>a+b,0);
+  const totalArea=ZM_ZONES.reduce((s,z)=>s+z.area,0);
+  const dens=zm_density(total,totalArea);
+  const densLbl=zm_densLabel(dens);
+  const crowd=zm_crowdLevel(total);
+
+  document.getElementById('ztcTotal').innerHTML=`~${total} <span>people</span>`;
+  const delta=total-zm_prevTotal;
+  const dtxt=delta>0?`▲ ${delta} from last`:(delta<0?`▼ ${Math.abs(delta)} from last`:'No change');
+  const dcls=delta>0?'zup':delta<0?'zdn':'zneu';
+  document.getElementById('ztcSub').textContent=dtxt;
+  document.getElementById('ztcSub').className=`ztc-sub ${dcls}`;
+  document.getElementById('ztcDens').innerHTML=`${dens} <span>p/100m²</span>`;
+  document.getElementById('ztcDensSub').textContent=densLbl.t;
+  document.getElementById('ztcDensSub').className=`ztc-sub ${densLbl.c}`;
+  document.getElementById('zcrowdDot').style.background=crowd.col;
+  document.getElementById('zcrowdLabel').textContent=crowd.label;
+  document.getElementById('zcrowdLabel').style.color=crowd.col;
+  document.getElementById('zcrowdNote').textContent=crowd.note;
+  document.getElementById('zzoneHrNote').textContent=`@ ${hh}:${mm}`;
+  document.getElementById('zflowTime').textContent=`${hh}:${mm}`;
+
+  // zone grid
+  const grid=document.getElementById('zoneGrid');
+  grid.innerHTML='';
+  ZM_ZONES.forEach((z,i)=>{
+    const count=zoneCounts[i];
+    const cls=zm_zoneClass(count,z);
+    const pct=zm_barPct(count,z);
+    const zd=zm_density(count,z.area);
+    const div=document.createElement('div');
+    div.className=`zcard ${cls}`;
+    div.innerHTML=`<div class="zbadge">${zm_zoneLabel(cls)}</div>
+      <div class="zn">${z.shortName}</div>
+      ${count?`<div class="zv">${count}</div><div class="zstat">${pct}% cap · ${zd}/100m²</div>`
+              :`<div class="zv">—</div><div class="zstat">All venues closed</div>`}
+      <div class="zbar-wrap"><div class="zbar" style="width:${pct}%"></div></div>`;
+    div.addEventListener('mouseenter',()=>zm_showDetail(z,count,hour,day));
+    grid.appendChild(div);
+  });
+
+  // bottom stats
+  const data48=zm_curve48(day);
+  const peak=Math.max(...data48);
+  const avg=Math.round(data48.reduce((a,b)=>a+b,0)/data48.length);
+  const prevTot=zm_totalAll(Math.max(0,hour-0.5),day);
+  const fd=total-prevTot;
+  document.getElementById('zbsPeak').textContent=Math.round(peak);
+  document.getElementById('zbsAvg').textContent=avg;
+  document.getElementById('zbsEntry').textContent=Math.max(0,Math.round(fd*2));
+  document.getElementById('zbsExit').textContent=Math.max(0,Math.round(-fd*2));
+  zm_prevTotal=total;
+  zm_drawChart(hour);
+}
+
+function zm_showDetail(zone,total,hour,day){
+  document.getElementById('zzdTitle').textContent=`Zone Detail · ${zone.name}`;
+  const list=document.getElementById('zzdList');
+  list.innerHTML='';
+  if(zone.note){
+    const n=document.createElement('div');
+    n.style.cssText='font-size:.48rem;color:var(--muted);margin-bottom:7px;line-height:1.5;';
+    n.textContent=zone.note; list.appendChild(n);
+  }
+  zone.venues.forEach(v=>{
+    const c=zm_venueCount(v,hour,day);
+    const d=document.createElement('div');
+    d.className='zzd-venue';
+    d.innerHTML=`<div><div class="zzd-name">${v.n}</div><div class="zzd-type">cap ${v.cap}</div></div>
+      <div class="${c?'zzd-count':'zzd-count closed'}">${c?'~'+c:'—'}</div>`;
+    list.appendChild(d);
+  });
+}
+
+// mini chart
+function zm_drawChart(selHour){
+  const wrap=document.getElementById('zfcWrap');
+  const canvas=document.getElementById('zflowC');
+  const rect=wrap.getBoundingClientRect();
+  if(!rect.width) return;
+  canvas.width=rect.width*2; canvas.height=rect.height*2;
+  const ctx=canvas.getContext('2d'); ctx.scale(2,2);
+  const W=rect.width,H=rect.height;
+  const day=zm_resolvedDay();
+  const data=zm_curve48(day);
+  const maxV=Math.max(...data,1);
+  const pad=3, sX=(W-pad*2)/(data.length-1);
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='rgba(255,255,255,.01)';
+  ctx.fillRect(pad,0,(8/48)*(W-pad*2),H);
+  ctx.fillRect(pad+(20/48)*(W-pad*2),0,(28/48)*(W-pad*2),H);
+  ctx.strokeStyle='rgba(255,255,255,.04)';ctx.lineWidth=1;
+  [.25,.5,.75].forEach(p=>{ctx.beginPath();ctx.moveTo(0,H*p);ctx.lineTo(W,H*p);ctx.stroke();});
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'rgba(201,168,76,.28)');g.addColorStop(1,'rgba(201,168,76,0)');
+  ctx.beginPath();
+  data.forEach((v,i)=>{const x=pad+i*sX,y=H-pad-(v/maxV)*(H-pad*2);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
+  ctx.lineTo(pad+(data.length-1)*sX,H);ctx.lineTo(pad,H);ctx.closePath();
+  ctx.fillStyle=g;ctx.fill();
+  ctx.beginPath();ctx.strokeStyle='#C9A84C';ctx.lineWidth=1.6;
+  data.forEach((v,i)=>{const x=pad+i*sX,y=H-pad-(v/maxV)*(H-pad*2);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
+  ctx.stroke();
+  if(selHour!=null){
+    const si=(selHour/24)*48,sx=pad+si*sX;
+    const sv=zm_totalAll(selHour,day),sy=H-pad-(sv/maxV)*(H-pad*2);
+    ctx.beginPath();ctx.strokeStyle='rgba(201,168,76,.4)';ctx.lineWidth=1;ctx.setLineDash([3,3]);
+    ctx.moveTo(sx,pad);ctx.lineTo(sx,H-pad);ctx.stroke();ctx.setLineDash([]);
+    ctx.beginPath();ctx.arc(sx,sy,4.5,0,Math.PI*2);ctx.fillStyle='#C9A84C';ctx.fill();
+    document.getElementById('zflowThumb').style.left=`${(selHour/24)*rect.width}px`;
+  }
+  ctx.fillStyle='rgba(122,109,80,.5)';ctx.font='7px Courier New';ctx.textAlign='right';
+  [.5,1].forEach(p=>ctx.fillText(Math.round(maxV*(1-p)),W-3,H*p+3));
+}
+
+// drag on zone mini-chart
+(function(){
+  const wrap=document.getElementById('zfcWrap');
+  const thumb=document.getElementById('zflowThumb');
+  const tipEl=document.getElementById('zflowTip');
+  function zm_getFrac(e){
+    const r=wrap.getBoundingClientRect();
+    return Math.max(0,Math.min(1,((e.touches?e.touches[0].clientX:e.clientX)-r.left)/r.width));
+  }
+  function zm_onDrag(e){
+    if(!zm_isDrag) return;
+    const frac=zm_getFrac(e);
+    const hour=frac*24;
+    const hh=String(Math.floor(hour)).padStart(2,'0');
+    const mm=String(Math.floor((hour%1)*60)).padStart(2,'0');
+    const tot=zm_totalAll(hour,zm_resolvedDay());
+    thumb.style.left=`${frac*wrap.getBoundingClientRect().width}px`;
+    tipEl.textContent=`${hh}:${mm} · ~${tot} ppl`;
+    tipEl.style.left=`${frac*wrap.getBoundingClientRect().width}px`;
+    tipEl.classList.add('show');
+    zm_render(hour);
+    e.preventDefault();
+  }
+  wrap.addEventListener('mousedown', e=>{zm_isDrag=true;zm_onDrag(e);});
+  wrap.addEventListener('touchstart',e=>{zm_isDrag=true;zm_onDrag(e);},{passive:false});
+  window.addEventListener('mousemove', zm_onDrag);
+  window.addEventListener('touchmove', zm_onDrag,{passive:false});
+  window.addEventListener('mouseup',  ()=>{zm_isDrag=false;tipEl.classList.remove('show');});
+  window.addEventListener('touchend', ()=>{zm_isDrag=false;tipEl.classList.remove('show');});
+})();
+
+// Hook zone render into the main dashboard's renderAll
+// so it auto-updates whenever the main timeline is dragged
+(function(){
+  const _origRenderAll = typeof renderAll==='function' ? renderAll : null;
+  if(_origRenderAll){
+    window.renderAll = function(hour){
+      _origRenderAll(hour);
+      zm_render(hour);
+    };
+  }
+  // Also hook startLive tick
+  window.addEventListener('load', ()=>{
+    const h = (typeof nowHour==='function') ? nowHour() : new Date().getHours();
+    zm_render(h);
+    // refresh every 30s alongside main dashboard
+    setInterval(()=>{
+      const h2=(typeof nowHour==='function')?nowHour():new Date().getHours();
+      zm_render(h2);
+    }, 30000);
+  });
+  window.addEventListener('resize',()=>{
+    const h=(typeof curHour!=='undefined'&&curHour!==null)?curHour:
+             (typeof nowHour==='function'?nowHour():new Date().getHours());
+    zm_drawChart(h);
+  });
+})();
+
+// ── DROPDOWN TOGGLE FOR VENUE TABLE ──
+function toggleVenueDropdown(){
+  const content = document.getElementById('venueDropdownContent');
+  const icon = document.getElementById('venueDropdownIcon');
+  
+  if(content.classList.contains('collapsed')){
+    content.classList.remove('collapsed');
+    icon.classList.remove('collapsed');
+  } else {
+    content.classList.add('collapsed');
+    icon.classList.add('collapsed');
+  }
+}
+</script>
+
+</body>
+</html>
 
